@@ -45,22 +45,44 @@
 //! assert_eq!(expr.eval().unwrap(), result);
 //! ```
 
+use std::any::Any;
+use std::ops::{Neg,Mul};
 
-use std::ops::Neg;
-
-/// The enum Xpr contains all operations supported by this crate. Xpr::Terminal represents 
-/// a leaf expression.
-pub enum Xpr<U> {
-    Terminal(U),
-    Neg(Box<Xpr<U>>)
+/// The `Expression` just has an associated output type
+pub trait Expression : Any {
+    type Output;
 }
 
-impl<U> Xpr<U> 
-where U: Neg<Output = U>  + Copy
+// An enum parametrized by its output type O, as well as the outputs types of 
+// the left and right operand expressions
+pub enum Xpr<O,L,R> {
+    Terminal(O),
+    Neg(Box<dyn Expression<Output = L>>),
+    Mul(Box<dyn Expression<Output = L>>, Box<dyn Expression<Output = R>>)
+}
+
+impl<O,L,R> Expression for Xpr<O,L,R>
+where O: 'static,
+      L: 'static,
+      R: 'static
+{
+    type Output = O;
+}
+
+impl<O> Xpr<O,O,O>
+{
+    /// A factory function to create a terminal without specifying the two 
+    /// arbitrary operand types of `Xpr`
+    pub fn term(o: O) -> Self {
+        Xpr::Terminal(o)
+    }
+}
+
+impl<O,L,R> Xpr<O,L,R> 
 {
 
     /// evaluates the expression
-    pub fn eval(&self) -> Result<U,&str> {
+    pub fn eval(&self) -> Result<O,&str> {
         self.transform(|x| {
             match x {
                 Xpr::Terminal(v) => Some(*v),
@@ -69,42 +91,47 @@ where U: Neg<Output = U>  + Copy
         }).ok_or("Error evaluating expression")
     }
 
-}
-
-impl<U> Neg for Xpr<U> {
-    type Output = Xpr<U>;
-    fn neg(self) -> Self::Output {
-        Xpr::Neg(Box::new(self))
-    }
-}
-
-/// Transform is trait, that lets us transform
-/// subexpressions in an expression
-pub trait Transform<U = Self> {
-
-    fn transform<R,F>(&self, _f: F) -> Option<R>
-    where F: FnMut(&Xpr<U>) -> Option<R>,
-          R: Neg<Output = R>
-    {
-        None
-    }
-}
-
-impl<U> Transform<U> for Xpr<U> 
-{
-    fn transform<R,F>(&self, mut f: F) -> Option<R>
-    where F: FnMut(&Xpr<U>) -> Option<R>,
-          R: Neg<Output = R>
+    fn transform<F>(&self, mut f: F) -> Option<O>
+    where F: FnMut(&Xpr<O,L,R>) -> Option<O>,
     {
         // CASE 1/3: Match! return f(self)
         if let Some(v) = f(self) { return Some(v); };
 
         match self {
-            Xpr::Terminal(_) => None, // CASE 2/3: We have reached a leaf-expression, no match!
-            Xpr::Neg(x) => {      // CASE 3/3: Recurse and apply operation to result
-                x.transform(f).map(|y| -y)
+            // CASE 2/3: We have reached a leaf-expression, no match!
+            Xpr::Terminal(_) => None, 
+            // CASE 3/3: Recurse and apply operation to result
+            Xpr::Neg(x) => {
+                // To Do: downcast to Xpr using any
+                let y : Box<&dyn Any> = Box::new(x);
+                let z = y.downcast_ref::<Xpr<O,L,R>>().unwrap();
+                z.transform(f).map(|y| -y)
             }
         }
+    }
+
+}
+
+impl<I,X,Y,O> Neg for Xpr<I,X,Y> 
+where X: 'static,
+      Y: 'static,
+      I: Neg<Output = O> + 'static
+{
+    type Output = Xpr<O,I,Y>;
+    fn neg(self) -> Self::Output {
+        Xpr::Neg(Box::new(self))
+    }
+}
+
+impl<OL,X,Y,OR,R,O> Mul<R> for Xpr<OL,X,Y>
+where R : Expression<Output = OR> + 'static,
+      OL: Mul<OR, Output = O> + 'static,
+      X: 'static,
+      Y: 'static
+{
+    type Output = Xpr::<O,OL,OR>;
+    fn mul(self, other: R) -> Self::Output {
+        Xpr::Mul(Box::new(self), Box::new(other))
     }
 }
 
