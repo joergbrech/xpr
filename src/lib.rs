@@ -54,13 +54,12 @@ where O: 'static,
     {
         // CASE 1/3: Match! return f(self)
         if let Some(v) = f(Box::new(self.as_anyxpr())) { return Some(v); };
-        
+
         match self {
             // CASE 2/3: We have reached a leaf-expression, no match!
             Xpr::Terminal(_) => None, 
             // CASE 3/3: Recurse and apply operation to result
             Xpr::Neg(op) => { 
-                //l.as_xpr::<L,R>().expect("Shit").transform(f).map(|l| -l) 
                 op.transform(f).map(|l| -l)
             },
             Xpr::Mul(op) => { 
@@ -142,7 +141,9 @@ where I: 'static
     fn transform<F,R>(&self, mut f: F) -> Option<R>
     where F: FnMut(Box<AnyXpr>) -> Option<R>
     {
-        f(Box::new(self.input.as_anyxpr()))
+        if let Some(v) = f(Box::new(self.input.as_anyxpr())) { return Some(v); }
+        println!("Shit! Need to recurse as Xpr");
+        None
     }
 }
 
@@ -167,11 +168,13 @@ where L: 'static,
     fn transform<F,X>(&self, mut f: F) -> Option<(X,X)>
     where F: FnMut(Box<AnyXpr>) -> Option<X>
     {
-        match (f(Box::new(self.left.as_anyxpr())), f(Box::new(self.right.as_anyxpr()))) 
-        {
-            (Some(l), Some(r)) => Some((l,r)),
-            _ => None
+        if let Some(l) = f(Box::new(self.left.as_anyxpr())) {
+            if let Some(r) = f(Box::new(self.right.as_anyxpr())) {
+                return Some((l,r));
+            }
         }
+        println!("Shit! BinaryOp Transform needs to recurse as Xpr");
+        None
     }
 }
 
