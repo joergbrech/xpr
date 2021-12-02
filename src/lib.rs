@@ -9,111 +9,186 @@
 //! use xpr::*; 
 //!
 //! // An expression 
-//! let y = ---Xpr::Terminal(42);
-//! 
-//! // A transform that counts the number of nestings
-//! let mut count = 0;
-//! y.transform(|x| {
-//!     match x {
-//!         Xpr::Neg(_) => {
-//!             count+=1;
-//!             None
-//!         }
-//!         _ => Some(0) // must return something. It doesn't matter what here.
-//!     }
-//! });
-//! assert_eq!(count, 3);
-//! 
-//! // a transform that replaces the terminal in y with E::Terminal(5)
-//! let expr = y.transform(|x| {
-//!    match *x {
-//!        Xpr::Terminal(_) => Some(Xpr::Terminal(5)),
-//!        _ => None
-//!    } 
-//! }).unwrap();
-//! 
-//! // a transform that evaluates the expression
-//! let result = expr.transform(|x| {
-//!     match *x {
-//!         Xpr::Terminal(v) => Some(v),
-//!         _ => None
-//!     }
-//! }).unwrap();
-//! assert_eq!(result, -5);
-//!
-//! // In fact, Xpr::eval() is just syntactic sugar around this tranform
-//! assert_eq!(expr.eval().unwrap(), result);
+//! let y = -Xpr::new(2)*Xpr::new(-21);
+//! assert_eq!(y.eval(), Ok(42));
 //! ```
 
+use std::any::Any;
 
-use std::ops::Neg;
+pub trait Eval {
+    type Output: 'static + Copy;
 
-/// The enum Xpr contains all operations supported by this crate. Xpr::Terminal represents 
-/// a leaf expression.
-pub enum Xpr<U> {
-    Terminal(U),
-    Neg(Box<Xpr<U>>)
-}
+    fn transform(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>;
 
-impl<U> Xpr<U> 
-where U: Neg<Output = U>  + Copy
-{
+    fn eval(&self) -> Result<Self::Output,&str> {
 
-    /// evaluates the expression
-    pub fn eval(&self) -> Result<U,&str> {
-        self.transform(|x| {
-            match x {
-                Xpr::Terminal(v) => Some(*v),
+        let mut evaluator = |e: AnyXpr| -> Option<Box<dyn Any>> {
+            match e.as_xpr::<Self::Output>() {
+                Some(&Xpr::Terminal(x)) => Some(Box::new(x)),
                 _ => None
             }
-        }).ok_or("Error evaluating expression")
-    }
+        };
 
-}
-
-impl<U> Neg for Xpr<U> {
-    type Output = Xpr<U>;
-    fn neg(self) -> Self::Output {
-        Xpr::Neg(Box::new(self))
+        cast_optional_any(self.transform(&mut evaluator)).ok_or("Error evaluation expression")
     }
 }
 
-/// Transform is trait, that lets us transform
-/// subexpressions in an expression
-pub trait Transform<U = Self> {
-
-    fn transform<R,F>(&self, _f: F) -> Option<R>
-    where F: FnMut(&Xpr<U>) -> Option<R>,
-          R: Neg<Output = R>
-    {
-        None
-    }
-}
-
-impl<U> Transform<U> for Xpr<U> 
+fn cast_optional_any<T: 'static + Copy>(x: Option<Box<dyn Any>>) -> Option<T>
 {
-    fn transform<R,F>(&self, mut f: F) -> Option<R>
-    where F: FnMut(&Xpr<U>) -> Option<R>,
-          R: Neg<Output = R>
-    {
-        // CASE 1/3: Match! return f(self)
-        if let Some(v) = f(self) { return Some(v); };
+    match x {
+        Some(x) => match x.downcast_ref::<T>() {
+            Some(x) => return Some(*x),
+            None => None
+        },
+        _ => None
+    }
+}
 
+//***********************************************************************//
+
+pub enum Xpr<T: Sized> {
+    Terminal(T),
+    Neg(Box<dyn Eval<Output = T>>),
+    Mul(Box<dyn Eval<Output = T>>)
+}
+impl<T> Xpr<T> 
+where T: 'static + Copy
+{
+    pub fn new(value: T) -> Self 
+    {
+        Xpr::<T>::Terminal(value)
+    }
+
+    pub fn as_anyxpr(&self) -> AnyXpr {
+        AnyXpr { expr: self }
+    }
+
+    pub fn transform_as<R: 'static + Copy>(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<R>
+    {
+        cast_optional_any(self.transform(f))
+    }
+}
+
+impl<T: 'static + Copy> Eval for Xpr<T>
+{
+    type Output = T;
+
+    fn transform(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
+    {
+        if let Some(v) = f(self.as_anyxpr()) { return Some(v); }
+        
         match self {
-            Xpr::Terminal(_) => None, // CASE 2/3: We have reached a leaf-expression, no match!
-            Xpr::Neg(x) => {      // CASE 3/3: Recurse and apply operation to result
-                x.transform(f).map(|y| -y)
-            }
+            Xpr::Terminal(_) => None,
+            Xpr::Mul(x) => x.transform(f),
+            Xpr::Neg(x) => x.transform(f)
         }
     }
 }
 
+//***********************************************************************//
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
+struct Neg<T>
+{
+    input: Box<dyn Eval<Output=T>>,
+}
+impl<T> Eval for Neg<T>
+where T: 'static + Copy + std::ops::Neg,
+      <T as std::ops::Neg>::Output: Copy
+{
+    type Output = <T as std::ops::Neg>::Output;
+
+    fn transform(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
+    {
+        if let Some(l) = cast_optional_any::<T>(self.input.transform(f)) {
+            return Some(Box::new(-l));
+        }
+        None
     }
+}
+
+impl<T> std::ops::Neg for Xpr<T>
+where T: 'static + Copy + std::ops::Neg,
+      <T as std::ops::Neg>::Output: Copy
+{
+    type Output = Xpr<<T as std::ops::Neg>::Output>;
+    fn neg(self) -> Self::Output
+    {
+        Xpr::Neg( Box::new(Neg{ input: Box::new(self) } ))
+    }
+}
+
+//***********************************************************************//
+
+struct Mul<L,R>
+{
+    left: Box<dyn Eval<Output=L>>,
+    right: Box<dyn Eval<Output=R>>
+}
+impl<L,R> Eval for Mul<L,R>
+where L: 'static + Copy + std::ops::Mul<R>,
+      R: 'static + Copy,
+      <L as std::ops::Mul<R>>::Output: 'static + Copy
+{
+    type Output = <L as std::ops::Mul<R>>::Output;
+
+    fn transform(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
+    {
+        if let Some(l) = cast_optional_any::<L>(self.left.transform(f)) {
+            if let Some(r) = cast_optional_any::<R>(self.right.transform(f)) {
+                return Some(Box::new(l*r));
+            }
+        }
+        None
+    }
+}
+
+impl<L,R> std::ops::Mul<Xpr<R>> for Xpr<L>
+where L: 'static + Copy + std::ops::Mul<R>,
+      R: 'static + Copy,
+      <L as std::ops::Mul<R>>::Output: Copy
+{
+    type Output = Xpr<<L as std::ops::Mul<R>>::Output>;
+    fn mul(self, other : Xpr<R>) -> Self::Output
+    {
+        Xpr::Mul( Box::new(Mul{ left: Box::new(self), right: Box::new(other) } ))
+    }
+}
+
+//***********************************************************************//
+
+pub struct AnyXpr<'a> {
+    expr: &'a dyn std::any::Any
+}
+impl<'a> AnyXpr<'a>
+{
+    /// given an output type T, this function downcasts 
+    /// to its contained `Xpr<T>`
+    fn as_xpr<T>(&'a self) -> Option<&'a Xpr<T>>
+    where T: 'static
+    {
+        self.expr.downcast_ref::<Xpr<T>>()
+    }
+}
+
+//***********************************************************************//
+
+#[cfg(test)] 
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn test_mul_eval_vs_transform() {
+        let mut evaluator = |e: AnyXpr| -> Option<Box<dyn Any>> {
+            match e.as_xpr::<i32>() {
+                Some(&Xpr::Terminal(x)) => Some(Box::new(x)),
+                _ => None
+            }
+        };
+    
+        let x = Xpr::new(3)*Xpr::new(2)*Xpr::new(7);
+        assert_eq!(x.eval(), Ok(42));
+        assert_eq!(x.transform_as::<i32>(&mut evaluator), Some(42))
+    }
+
 }
