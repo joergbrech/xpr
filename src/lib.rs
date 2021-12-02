@@ -13,21 +13,10 @@
 //! assert_eq!(y.eval(), Ok(42));
 //! ```
 
-fn cast_optional_any<T: 'static>(x: Option<Box<dyn Any>>) -> Option<T>
-{
-    match x {
-        Some(x) => match x.downcast_ref::<T>() {
-            Some(x) => return Some(*x),
-            None => None
-        },
-        _ => None
-    }
-}
-
 use std::any::Any;
 
-trait Eval {
-    type Output: 'static;
+pub trait Eval {
+    type Output: 'static + Copy;
 
     fn transform(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>;
 
@@ -44,42 +33,43 @@ trait Eval {
     }
 }
 
+fn cast_optional_any<T: 'static + Copy>(x: Option<Box<dyn Any>>) -> Option<T>
+{
+    match x {
+        Some(x) => match x.downcast_ref::<T>() {
+            Some(x) => return Some(*x),
+            None => None
+        },
+        _ => None
+    }
+}
+
 //***********************************************************************//
 
-enum Xpr<T: Sized> {
+pub enum Xpr<T: Sized> {
     Terminal(T),
+    Neg(Box<dyn Eval<Output = T>>),
     Mul(Box<dyn Eval<Output = T>>)
 }
 impl<T> Xpr<T> 
-where T: 'static
+where T: 'static + Copy
 {
-    fn new(value: T) -> Self 
+    pub fn new(value: T) -> Self 
     {
         Xpr::<T>::Terminal(value)
     }
 
-    fn as_anyxpr(&self) -> AnyXpr {
+    pub fn as_anyxpr(&self) -> AnyXpr {
         AnyXpr { expr: self }
     }
 
-    fn transform_as<R: 'static>(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<R>
+    pub fn transform_as<R: 'static + Copy>(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<R>
     {
         cast_optional_any(self.transform(f))
     }
 }
 
-impl<L,R> std::ops::Mul<Xpr<R>> for Xpr<L>
-where L: 'static + std::ops::Mul<R>,
-      R: 'static
-{
-    type Output = Xpr<<L as std::ops::Mul<R>>::Output>;
-    fn mul(self, other : Xpr<R>) -> Self::Output
-    {
-        Xpr::Mul( Box::new(Mul{ left: Box::new(self), right: Box::new(other) } ))
-    }
-}
-
-impl<T: 'static> Eval for Xpr<T>
+impl<T: 'static + Copy> Eval for Xpr<T>
 {
     type Output = T;
 
@@ -89,8 +79,41 @@ impl<T: 'static> Eval for Xpr<T>
         
         match self {
             Xpr::Terminal(_) => None,
-            Xpr::Mul(x) => x.transform(f)
+            Xpr::Mul(x) => x.transform(f),
+            Xpr::Neg(x) => x.transform(f)
         }
+    }
+}
+
+//***********************************************************************//
+
+struct Neg<T>
+{
+    input: Box<dyn Eval<Output=T>>,
+}
+impl<T> Eval for Neg<T>
+where T: 'static + Copy + std::ops::Neg,
+      <T as std::ops::Neg>::Output: Copy
+{
+    type Output = <T as std::ops::Neg>::Output;
+
+    fn transform(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
+    {
+        if let Some(l) = cast_optional_any::<T>(self.input.transform(f)) {
+            return Some(Box::new(-l));
+        }
+        None
+    }
+}
+
+impl<T> std::ops::Neg for Xpr<T>
+where T: 'static + Copy + std::ops::Neg,
+      <T as std::ops::Neg>::Output: Copy
+{
+    type Output = Xpr<<T as std::ops::Neg>::Output>;
+    fn neg(self) -> Self::Output
+    {
+        Xpr::Neg( Box::new(Neg{ input: Box::new(self) } ))
     }
 }
 
@@ -102,9 +125,9 @@ struct Mul<L,R>
     right: Box<dyn Eval<Output=R>>
 }
 impl<L,R> Eval for Mul<L,R>
-where L: 'static + std::ops::Mul<R>,
-      R: 'static,
-      <L as std::ops::Mul<R>>::Output: 'static
+where L: 'static + Copy + std::ops::Mul<R>,
+      R: 'static + Copy,
+      <L as std::ops::Mul<R>>::Output: 'static + Copy
 {
     type Output = <L as std::ops::Mul<R>>::Output;
 
@@ -119,9 +142,21 @@ where L: 'static + std::ops::Mul<R>,
     }
 }
 
+impl<L,R> std::ops::Mul<Xpr<R>> for Xpr<L>
+where L: 'static + Copy + std::ops::Mul<R>,
+      R: 'static + Copy,
+      <L as std::ops::Mul<R>>::Output: Copy
+{
+    type Output = Xpr<<L as std::ops::Mul<R>>::Output>;
+    fn mul(self, other : Xpr<R>) -> Self::Output
+    {
+        Xpr::Mul( Box::new(Mul{ left: Box::new(self), right: Box::new(other) } ))
+    }
+}
+
 //***********************************************************************//
 
-struct AnyXpr<'a> {
+pub struct AnyXpr<'a> {
     expr: &'a dyn std::any::Any
 }
 impl<'a> AnyXpr<'a>
@@ -153,7 +188,7 @@ mod tests {
     
         let x = Xpr::new(3)*Xpr::new(2)*Xpr::new(7);
         assert_eq!(x.eval(), Ok(42));
-        assert_eq!(x.transform(&mut evaluator), Some(42))
+        assert_eq!(x.transform_as::<i32>(&mut evaluator), Some(42))
     }
 
 }
