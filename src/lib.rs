@@ -97,10 +97,7 @@ where T: Transform,
 fn cast_optional_any<T: 'static + Copy>(x: Option<Box<dyn Any>>) -> Option<T>
 {
     match x {
-        Some(x) => match x.downcast_ref::<T>() {
-            Some(x) => return Some(*x),
-            None => None
-        },
+        Some(x) => x.downcast_ref::<T>().copied(),
         _ => None
     }
 }
