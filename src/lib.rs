@@ -47,11 +47,26 @@ mod private
 
         type Output;
 
-        /// The [`Transform::transform_internal`] function is a central feature of this crate. It can be used to transform and manipulate
+        /// The [`Transform::transform_internal`] function can be used to transform and manipulate
         /// expression by traversing the expression tree made up of an expression's subexpressions. 
         /// 
-        /// The return type of [`Transform::transform`] is an [`std::any::Any`]. For now the type erasure of the return type is needed
-        /// to properly traverse the tree. [`Xpr::transform`] is a more convenient version of this transform.
+        /// The return type of [`Transform::transform`] is an [`std::any::Any`]. For now the type erasure of
+        /// the return type is needed to properly traverse the tree. [`Xpr::transform`] is a more convenient version 
+        /// of this transform.
+        /// 
+        /// The type erased return type is a bit misfortunate, because
+        /// 1. I cannot replace an operation taking in input of type X with an output of type Y, because the operation
+        ///    must downcast to an `Xpr<X>` when passing the returned value up through the expression tree.
+        /// 2. It makes the code a bit awkward. 
+        /// 
+        /// It is currently needed, for the following reason: 
+        /// 1. I need the transform(_internal) function to be a trait method, because I want to store trait objects as operands 
+        ///    to expressions. This way I have shared behavior (all operands can transform recursively)
+        /// 2. I need some form of type erasure of the operands of the operands. 
+        /// 
+        /// Ideally, the transform(_internal) would return `Option<T>` for a generic `T`, and we wouldn't need the extra level
+        /// of indirection between [`Xpr::transform`] and [`Transform::transform_internal`], but I can't call generic trait 
+        /// methods on trait objects.
         /// 
         fn transform_internal(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>;
     }
