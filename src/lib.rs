@@ -100,7 +100,7 @@ fn cast_optional_any<T: 'static + Copy>(x: Option<Box<dyn Any>>) -> Option<T>
 /// 
 /// `Xpr` should not be instantiated directly. Use the [`Xpr::new`] method
 /// to create an `Xpr::Terminal` leaf and then apply operations to it.
-pub enum Xpr<T: Sized> {
+pub enum Xpr<T> {
     /// A Terminal represents a leaf expression, e.g. a single value
     Terminal(T),
     /// Negation of an expression `l -> -l`
@@ -168,7 +168,7 @@ where T: 'static + Copy
     /// 
     /// let result = x.transform_as::<i32>(&mut evaluator);
     /// 
-    /// assert_eq!(result, Ok(-42));
+    /// assert_eq!(result, Some(-42));
     /// ```
     /// 
     /// Note that the type annotations can be dropped if the closure is passed anonymously to the function.
