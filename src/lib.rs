@@ -339,6 +339,11 @@ where L: 'static + std::ops::Mul<R>,
 /// [`AnyXpr`] is a type erased version of an [`Xpr<T>`]. 
 /// 
 /// Its sole purpose is to serve an argument in the closures passed to [`Xpr::transform`].
+/// 
+/// The type erasure is needed, because the transform will need to work on any kind of 
+/// expression, so it cannot have a generic parameter in it. We can't use a trait object
+/// like `dyn Transform` or `dyn Eval` because then we wouldn't be able to properly match
+/// an `Xpr` variant in the body of the closure of [`Xpr::transform`].
 pub struct AnyXpr<'a> {
     expr: &'a dyn std::any::Any
 }
