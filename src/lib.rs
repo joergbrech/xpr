@@ -53,7 +53,7 @@ pub trait Eval {
     /// assert_eq!(count, 3);
     /// ```
     /// 
-    fn transform_internal(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>;
+    fn transform_internal(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>;
 
     /// evaluate an expression. This is syntactic sugar around a transform, that unwraps any terminal
     /// to its contained type, see [`Eval::transform`] or [`Xpr::transform`].
@@ -70,7 +70,7 @@ pub trait Eval {
     /// ```
     fn eval(&self) -> Result<Self::Output,&str> {
 
-        let mut evaluator = |e: AnyXpr| -> Option<Box<dyn Any>> {
+        let mut evaluator = |e: &AnyXpr| -> Option<Box<dyn Any>> {
             match e.as_xpr::<Self::Output>() {
                 Some(&Xpr::Terminal(x)) => Some(Box::new(x)),
                 _ => None
@@ -191,9 +191,9 @@ where T: 'static
     /// });
     /// ```
     /// 
-    pub fn transform<R: 'static>(&self, f: &mut dyn FnMut(AnyXpr) -> Option<R>) -> Option<R>
+    pub fn transform<R: 'static>(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<R>) -> Option<R>
     {
-        let mut t = |e: AnyXpr| -> Option<Box<dyn Any>> {
+        let mut t = |e: &AnyXpr| -> Option<Box<dyn Any>> {
             match f(e) {
                 Some(e) => Some(Box::new(e)),
                 _ => None
@@ -207,9 +207,9 @@ impl<T: 'static> Eval for Xpr<T>
 {
     type Output = T;
 
-    fn transform_internal(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
+    fn transform_internal(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
     {
-        if let Some(v) = f(self.as_anyxpr()) { return Some(v); }
+        if let Some(v) = f(&self.as_anyxpr()) { return Some(v); }
         
         match self {
             Xpr::Terminal(_) => None,
@@ -230,7 +230,7 @@ where T: 'static + std::ops::Neg
 {
     type Output = <T as std::ops::Neg>::Output;
 
-    fn transform_internal(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
+    fn transform_internal(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
     {
         if let Some(l) = cast_optional_any::<T>(self.input.transform_internal(f)) {
             return Some(Box::new(-l));
@@ -263,7 +263,7 @@ where L: 'static + std::ops::Mul<R>,
 {
     type Output = <L as std::ops::Mul<R>>::Output;
 
-    fn transform_internal(&self, f: &mut dyn FnMut(AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
+    fn transform_internal(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>
     {
         if let Some(l) = cast_optional_any::<L>(self.left.transform_internal(f)) {
             if let Some(r) = cast_optional_any::<R>(self.right.transform_internal(f)) {
@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_mul_eval_vs_transform() {
-        let mut evaluator = |e: AnyXpr| -> Option<i32> {
+        let mut evaluator = |e: &AnyXpr| -> Option<i32> {
             match e.as_xpr::<i32>() {
                 Some(&Xpr::Terminal(x)) => Some(x),
                 _ => None
