@@ -16,47 +16,14 @@
 use std::any::Any;
 
 
-/// Evaluation and Transformation of expressions.
+/// Evaluation expressions.
 pub trait Eval {
 
     /// The output type of the expression.
     type Output: 'static;
 
-    /// The [`Eval::transform`] function is a central feature of this crate. It can be used to transform and manipulate
-    /// expression by traversing the expression tree made up of an expression's subexpressions. 
-    /// 
-    /// The return type of [`Eval::transform`] is an [`std::any::Any`]. For now the type erasure of the return type is needed
-    /// to properly traverse the tree. [`Xpr::transform`] is a more convenient version of this transform.
-    /// 
-    /// Examples
-    /// 
-    /// In the following example, we use the [`Eval::transform`] function to count the number of negations
-    /// ```rust
-    /// use xpr::*;
-    /// 
-    /// // create an expression
-    /// let y = ---Xpr::Terminal(42);
-    /// 
-    /// let mut count = 0;
-    /// 
-    /// // traverse the expression tree and capture count mutably
-    /// y.transform(&mut |x| -> Option<()> {
-    ///     match x.as_xpr::<i32>() {
-    ///         Some(&Xpr::Neg(_)) => {
-    ///             count+=1;
-    ///             None
-    ///         }
-    ///         _ => None
-    ///     }
-    /// });
-    /// 
-    /// assert_eq!(count, 3);
-    /// ```
-    /// 
-    fn transform_internal(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>;
-
     /// evaluate an expression. This is syntactic sugar around a transform, that unwraps any terminal
-    /// to its contained type, see [`Eval::transform`] or [`Xpr::transform`].
+    /// to its contained type, see [`Xpr::transform`].
     /// 
     /// # Example
     /// 
@@ -68,6 +35,36 @@ pub trait Eval {
     /// 
     /// assert_eq!(y.eval(), Ok(42));
     /// ```
+    fn eval(&self) -> Result<Self::Output,&str>;
+}
+
+mod private 
+{
+    use super::AnyXpr;
+    use std::any::Any;
+
+    pub trait Transform {
+
+        type Output;
+
+        /// The [`Transform::transform_internal`] function is a central feature of this crate. It can be used to transform and manipulate
+        /// expression by traversing the expression tree made up of an expression's subexpressions. 
+        /// 
+        /// The return type of [`Transform::transform`] is an [`std::any::Any`]. For now the type erasure of the return type is needed
+        /// to properly traverse the tree. [`Xpr::transform`] is a more convenient version of this transform.
+        /// 
+        fn transform_internal(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>) -> Option<Box<dyn Any>>;
+    }
+
+}
+use private::*;
+
+impl<T> Eval for T 
+where T: private::Transform,
+      <T as private::Transform>::Output: 'static
+{
+    type Output = <T as private::Transform>::Output;
+
     fn eval(&self) -> Result<Self::Output,&str> {
 
         let mut evaluator = |e: &AnyXpr| -> Option<Box<dyn Any>> {
@@ -104,9 +101,9 @@ pub enum Xpr<T> {
     /// A Terminal represents a leaf expression, e.g. a single value
     Terminal(T),
     /// Negation of an expression `l -> -l`
-    Neg(Box<dyn Eval<Output = T>>),
+    Neg(Box<dyn private::Transform<Output = T>>),
     /// Multiplication of two expressions `(l,r) -> l*r`
-    Mul(Box<dyn Eval<Output = T>>)
+    Mul(Box<dyn private::Transform<Output = T>>)
 }
 impl<T> Xpr<T> 
 where T: 'static
@@ -132,24 +129,25 @@ where T: 'static
         AnyXpr { expr: self }
     }
 
-    /// This function lets you traverse an expression tree and manipulate it. It is syntactic sugar around the
-    /// [`Eval::transform`] function.
+    /// The [`Xpr::transform`] function is a central feature of this crate. It can be used to transform and manipulate
+    /// expression by traversing the expression tree made up of an expression's subexpressions. 
     /// 
-    /// It takes a mutable closure that returns an [`Option<Box<dyn Any>>`]. The expression tree is traversed
+    /// 
+    /// It takes a mutable closure that returns an [`Option<T>`]. The expression tree is traversed
     /// recursively until the closure returns `Some(_)`, in which case the return value is passed upwards through the 
-    /// expression tree, applying each operation to the returned value on the way. 
+    /// expression tree, applying each operation to the value contained in the `Some` on the way.
     /// 
-    /// Note, that the return type of [`Eval::transform`] is an [`std::any::Any`]. This is currently a limitation of 
-    /// `xpr`, that is needed to properly handle any possible type of subexpression. The input argument of the closure
-    /// is an instance of [`AnyXpr`], which is a type erased [`Xpr<T>`]. To properly match expressions within the closure,
-    /// we can use [`AnyXpr::as_xpr`] for downcasting.
+    /// Note that the argument to `f` is a reference to [`AnyXpr`], which is a type erased version of [`Xpr<T>`]. To properly
+    /// match expressions in the body of `f`, we need to cast the argument to an `Xpr<T>` with an appropriate return type `T` 
+    /// using [`AnyXpr::as_xpr`], see the examples below.
     /// 
     /// # Examples
     /// 
-    /// ## Evaluate an expression
+    /// ## A transform that returns a value
     /// 
     /// This example demonstrates how an expression can be evaluated using a transform. This is taken directly from the
-    /// implementation of [`Eval::eval`].
+    /// implementation of [`Eval::eval`]. We will match any terminal, unwrap its wrapped value and pass that up the the
+    /// expression tree, evaluating each subexpression along the way.
     /// 
     /// ```rust
     /// use xpr::*;
@@ -171,24 +169,60 @@ where T: 'static
     /// assert_eq!(result, Some(-42));
     /// ```
     /// 
-    /// Note that the type annotations can be dropped if the closure is passed anonymously to the function.
+    /// Note that the type annotations can be dropped if the closure is passed anonymously to the function, as can be seen in the next 
+    /// example
     /// 
-    /// ## Replace a terminal expression
+    /// ## A transform that always returns `None`
     /// 
-    /// This example demonstrates how to replace a terminal expression with another.
+    /// In this example we are not interested in transforming the expression, we just want to do some analysis on it. 
+    /// Let's count the number of negations from the expression of the previous example
     /// 
     /// ```rust
     /// use xpr::*;
     /// 
-    /// let x = Xpr::new(5)*Xpr::new(7);
-    /// assert_eq!(x.eval(), Ok(35));
+    /// // create an expression
+    /// let y = ---Xpr::Terminal(42);
     /// 
-    /// let y = x.transform(&mut |e|{
-    ///     match e.as_xpr::<i32>() {
-    ///         Some(&Xpr::Terminal(v)) if v==5 => Some(Xpr::Terminal(7)),
+    /// let mut count = 0;
+    /// 
+    /// // traverse the expression tree and capture count mutably
+    /// y.transform(&mut |x| -> Option<()> {
+    ///     match x.as_xpr::<i32>() {
+    ///         Some(&Xpr::Neg(_)) => {
+    ///             count+=1;
+    ///             None
+    ///         }
     ///         _ => None
     ///     }
     /// });
+    /// 
+    /// assert_eq!(count, 3);
+    /// ```
+    /// 
+    /// We still need to directly declare the output type, because the closure never returns `Some`. 
+    /// In the next example, the compiler will be able to deduce the output type for us.
+    /// 
+    /// ## A transform that returns an expression
+    /// 
+    /// This example demonstrates how to replace a terminal expression with another expression.
+    /// 
+    /// ```rust
+    /// use xpr::*;
+    /// 
+    /// let x = -Xpr::new(5)*Xpr::new(6);
+    /// let y = Xpr::new(-2)*Xpr::new(7);
+    /// 
+    /// let z = x.transform(&mut |e|{
+    ///     match e.as_xpr::<i32>() {
+    ///         // replaces 5 with 3
+    ///         Some(&Xpr::Terminal(v)) if v==5 => Some(Xpr::Terminal(3)), 
+    ///         // inserts y in place of 6
+    ///         Some(&Xpr::Terminal(v)) => Some(y)
+    ///         _ => None
+    ///     }
+    /// });
+    /// 
+    /// assert_eq!(z.eval(), Ok(42));
     /// ```
     /// 
     pub fn transform<R: 'static>(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<R>) -> Option<R>
@@ -203,7 +237,7 @@ where T: 'static
     }
 }
 
-impl<T: 'static> Eval for Xpr<T>
+impl<T: 'static> private::Transform for Xpr<T>
 {
     type Output = T;
 
@@ -223,9 +257,9 @@ impl<T: 'static> Eval for Xpr<T>
 
 struct Neg<T>
 {
-    input: Box<dyn Eval<Output=T>>,
+    input: Box<dyn private::Transform<Output=T>>,
 }
-impl<T> Eval for Neg<T>
+impl<T> private::Transform for Neg<T>
 where T: 'static + std::ops::Neg
 {
     type Output = <T as std::ops::Neg>::Output;
@@ -253,10 +287,10 @@ where T: 'static + std::ops::Neg
 
 struct Mul<L,R>
 {
-    left: Box<dyn Eval<Output=L>>,
-    right: Box<dyn Eval<Output=R>>
+    left: Box<dyn private::Transform<Output=L>>,
+    right: Box<dyn private::Transform<Output=R>>
 }
-impl<L,R> Eval for Mul<L,R>
+impl<L,R> private::Transform for Mul<L,R>
 where L: 'static + std::ops::Mul<R>,
       R: 'static,
       <L as std::ops::Mul<R>>::Output: 'static
@@ -289,8 +323,7 @@ where L: 'static + std::ops::Mul<R>,
 
 /// [`AnyXpr`] is a type erased version of an [`Xpr<T>`]. 
 /// 
-/// It is used as an argument in the closures passed to [`Eval::transform`]
-///  or [`Xpr::transform`].
+/// Its sole purpose is to serve an argument in the closures passed to [`Xpr::transform`].
 pub struct AnyXpr<'a> {
     expr: &'a dyn std::any::Any
 }
