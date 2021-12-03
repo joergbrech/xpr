@@ -60,10 +60,10 @@ mod private
 use private::*;
 
 impl<T> Eval for T 
-where T: private::Transform,
-      <T as private::Transform>::Output: 'static
+where T: Transform,
+      <T as Transform>::Output: 'static
 {
-    type Output = <T as private::Transform>::Output;
+    type Output = <T as Transform>::Output;
 
     fn eval(&self) -> Result<Self::Output,&str> {
 
@@ -101,9 +101,9 @@ pub enum Xpr<T> {
     /// A Terminal represents a leaf expression, e.g. a single value
     Terminal(T),
     /// Negation of an expression `l -> -l`
-    Neg(Box<dyn private::Transform<Output = T>>),
+    Neg(Box<dyn Transform<Output = T>>),
     /// Multiplication of two expressions `(l,r) -> l*r`
-    Mul(Box<dyn private::Transform<Output = T>>)
+    Mul(Box<dyn Transform<Output = T>>)
 }
 impl<T> Xpr<T> 
 where T: 'static
@@ -237,7 +237,7 @@ where T: 'static
     }
 }
 
-impl<T: 'static> private::Transform for Xpr<T>
+impl<T: 'static> Transform for Xpr<T>
 {
     type Output = T;
 
@@ -257,9 +257,9 @@ impl<T: 'static> private::Transform for Xpr<T>
 
 struct Neg<T>
 {
-    input: Box<dyn private::Transform<Output=T>>,
+    input: Box<dyn Transform<Output=T>>,
 }
-impl<T> private::Transform for Neg<T>
+impl<T> Transform for Neg<T>
 where T: 'static + std::ops::Neg
 {
     type Output = <T as std::ops::Neg>::Output;
@@ -287,10 +287,10 @@ where T: 'static + std::ops::Neg
 
 struct Mul<L,R>
 {
-    left: Box<dyn private::Transform<Output=L>>,
-    right: Box<dyn private::Transform<Output=R>>
+    left: Box<dyn Transform<Output=L>>,
+    right: Box<dyn Transform<Output=R>>
 }
-impl<L,R> private::Transform for Mul<L,R>
+impl<L,R> Transform for Mul<L,R>
 where L: 'static + std::ops::Mul<R>,
       R: 'static,
       <L as std::ops::Mul<R>>::Output: 'static
