@@ -13,9 +13,9 @@
 //! assert_eq!(y.eval(), Ok(42));
 //! ```
 
-use std::ops;
 use std::any::Any;
 use std::marker::PhantomData;
+use std::ops;
 
 /// A trait for evaluating expressions
 pub trait Eval {
@@ -43,13 +43,13 @@ pub trait Transform: TransformInternal {
     /// expression by traversing the expression tree made up of an expression's subexpressions.
     ///
     ///
-    /// It takes a mutable closure that returns an [`Option<T>`]. The expression tree is traversed
+    /// It takes a mutable visiting closure that returns an [`Option<T>`]. The expression tree is traversed
     /// recursively until the closure returns `Some(_)`, in which case the return value is passed upwards through the
     /// expression tree, applying each operation to the value contained in the `Some` on the way.
     ///
-    /// Note that the argument to `f` is a reference to [`AnyXpr`], which is a type erased version of [`Xpr<T>`]. To properly
-    /// match expressions in the body of `f`, we need to cast the argument to an `Xpr<T>` with an appropriate return type `T`
-    /// using [`AnyXpr::as_xpr`], see the examples below.
+    /// Note that the argument to the visitor closure `f` is a to [`&dyn Any`]. This way, it can be applied to any kind
+    /// of expression. To properly match expressions in the body of `f`, we need to downcast the argument to an `&Xpr<T>`
+    /// with an appropriate return type `T` using `downcast_ref`, see the examples below.
     ///
     /// # Examples
     ///
@@ -67,8 +67,8 @@ pub trait Transform: TransformInternal {
     /// let x = ---Xpr::Terminal(42);
     ///
     /// /// the following transform evaluates an expression
-    /// let mut evaluator = |e: &AnyXpr| -> Option<i32> {
-    ///     match e.as_xpr::<i32>() {
+    /// let mut evaluator = |e: &dyn Any| -> Option<i32> {
+    ///     match e.downcast_ref::<Xpr<i32>>() {
     ///         Some(&Xpr::Terminal(x)) => Some(x),
     ///         _ => None
     ///     }
@@ -97,7 +97,7 @@ pub trait Transform: TransformInternal {
     ///
     /// // traverse the expression tree and capture count mutably
     /// y.transform(&mut |x| -> Option<()> {
-    ///     match x.as_xpr::<i32>() {
+    ///     match x.downcast_ref::<Xpr<i32>>() {
     ///         Some(&Xpr::Neg(_)) => {
     ///             count+=1;
     ///             None
@@ -137,11 +137,18 @@ pub trait Transform: TransformInternal {
     /// //assert_eq!(z.unwrap().eval(), Ok(42));
     /// ```
     ///
-    fn transform<R: 'static + Copy>(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<R>) -> Option<R>;
+    fn transform<R: 'static + Copy>(&self, f: &mut dyn FnMut(&dyn Any) -> Option<R>) -> Option<R> {
+        let mut t = |e: &dyn Any| -> Option<Box<dyn Any>> {
+            match f(e) {
+                Some(e) => Some(Box::new(e)),
+                _ => None,
+            }
+        };
+        cast_optional_any(self.transform_internal(&mut t))
+    }
 }
 
 mod private {
-    use super::AnyXpr;
     use std::any::Any;
 
     pub trait TransformInternal {
@@ -168,7 +175,7 @@ mod private {
         ///
         fn transform_internal(
             &self,
-            f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>,
+            f: &mut dyn FnMut(&dyn Any) -> Option<Box<dyn Any>>,
         ) -> Option<Box<dyn Any>>;
     }
 
@@ -182,28 +189,15 @@ mod private {
 }
 use private::*;
 
-impl<T> Transform for T
-where
-    T: TransformInternal,
-{
-    fn transform<R: 'static + Copy>(&self, f: &mut dyn FnMut(&AnyXpr) -> Option<R>) -> Option<R> {
-        let mut t = |e: &AnyXpr| -> Option<Box<dyn Any>> {
-            match f(e) {
-                Some(e) => Some(Box::new(e)),
-                _ => None,
-            }
-        };
-        cast_optional_any(self.transform_internal(&mut t))
-    }
-}
+impl<T> Transform for T where T: TransformInternal {}
 
 impl<T> Eval for T
 where
     T: Transform,
 {
     fn eval<R: 'static + Copy>(&self) -> Result<R, &str> {
-        let mut evaluator = |e: &AnyXpr| -> Option<R> {
-            match e.as_xpr::<R>() {
+        let mut evaluator = |e: &dyn Any| -> Option<R> {
+            match e.downcast_ref::<Xpr<R>>() {
                 Some(&Xpr::Terminal(x)) => Some(x),
                 _ => None,
             }
@@ -231,22 +225,13 @@ pub enum Xpr<T: 'static + Copy> {
     /// Multiplication of two expressions `(l,r) -> l*r`
     Mul(Box<dyn TransformInternal>),
 }
-impl<T> Xpr<T>
-where
-    T: 'static + Copy,
-{
-    /// type erase the output type. This is the argument accepted by the transform closures
-    fn as_anyxpr(&self) -> AnyXpr {
-        AnyXpr { expr: self }
-    }
-}
 
 impl<T: 'static + Copy> TransformInternal for Xpr<T> {
     fn transform_internal(
         &self,
-        f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>,
+        f: &mut dyn FnMut(&dyn Any) -> Option<Box<dyn Any>>,
     ) -> Option<Box<dyn Any>> {
-        if let Some(v) = f(&self.as_anyxpr()) {
+        if let Some(v) = f(self) {
             return Some(v);
         }
 
@@ -278,7 +263,7 @@ where
 {
     fn transform_internal(
         &self,
-        f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>,
+        f: &mut dyn FnMut(&dyn Any) -> Option<Box<dyn Any>>,
     ) -> Option<Box<dyn Any>> {
         if let Some(l) = cast_optional_any::<T>(self.input.transform_internal(f)) {
             return Some(Box::new(-l));
@@ -324,7 +309,7 @@ where
 {
     fn transform_internal(
         &self,
-        f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>,
+        f: &mut dyn FnMut(&dyn Any) -> Option<Box<dyn Any>>,
     ) -> Option<Box<dyn Any>> {
         if let Some(l) = cast_optional_any::<L>(self.left.transform_internal(f)) {
             if let Some(r) = cast_optional_any::<R>(self.right.transform_internal(f)) {
@@ -349,44 +334,14 @@ where
 
 //***********************************************************************//
 
-/// [`AnyXpr`] is a type erased version of an [`Xpr<T>`]. It is a very thin wrapper around an [`&dyn std::any::Any`].
-///
-/// Its sole purpose is to serve an argument in the closures passed to [`Transform::transform`].
-///
-/// The type erasure is needed, because the transform will need to work on any kind of
-/// expression, so it cannot have a generic parameter in it. We can't use a trait object
-/// like `dyn Transform` or `dyn Eval` because then we wouldn't be able to properly match
-/// an `Xpr` variant in the body of the closure of [`Transform::transform`].
-pub struct AnyXpr<'a> {
-    expr: &'a dyn std::any::Any,
-}
-impl<'a> AnyXpr<'a> {
-    /// To properly match an `AnyXpr` to an `Xpr<T>`
-    /// with its associated return type `T`, you can use the `as_xpr`
-    /// to downcast to to its contained `Xpr<T>`
-    ///
-    /// # Examples
-    ///
-    /// See the documentation of [`Transform::transform`] for a usage
-    /// example within a transform.
-    pub fn as_xpr<T>(&'a self) -> Option<&'a Xpr<T>>
-    where
-        T: 'static + Copy,
-    {
-        self.expr.downcast_ref::<Xpr<T>>()
-    }
-}
-
-//***********************************************************************//
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_mul_eval_vs_transform() {
-        let mut evaluator = |e: &AnyXpr| -> Option<i32> {
-            match e.as_xpr::<i32>() {
+        let mut evaluator = |e: &dyn Any| -> Option<i32> {
+            match e.downcast_ref::<Xpr<i32>>() {
                 Some(&Xpr::Terminal(x)) => Some(x),
                 _ => None,
             }
@@ -400,10 +355,12 @@ mod tests {
     // a struct that doesn't implement all supported operations
     #[derive(Clone, Copy, Debug, PartialEq)]
     struct OnlyNeg(i32);
-    
+
     impl ops::Neg for OnlyNeg {
         type Output = Self;
-        fn neg(self) -> Self::Output { OnlyNeg(-self.0) }
+        fn neg(self) -> Self::Output {
+            OnlyNeg(-self.0)
+        }
     }
 
     #[test]
