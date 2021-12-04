@@ -9,7 +9,7 @@
 //! use xpr::*;
 //!
 //! // An expression
-//! let y = -Xpr::new(2)*Xpr::new(-21);
+//! let y = -Xpr::Terminal(2)*Xpr::Terminal(-21);
 //! assert_eq!(y.eval(), Ok(42));
 //! ```
 
@@ -27,7 +27,7 @@ pub trait Eval {
     /// use xpr::*;
     ///
     /// // An expression
-    /// let y = -Xpr::new(3)*Xpr::new(2)*Xpr::new(-7);
+    /// let y = -Xpr::Terminal(3)*Xpr::Terminal(2)*Xpr::Terminal(-7);
     ///
     /// assert_eq!(y.eval(), Ok(42));
     /// ```
@@ -119,10 +119,10 @@ pub trait Transform {
     ///
     /// ```rust
     /// use xpr::*;
-    /// 
-    /// let x = -Xpr::new(5)*Xpr::new(6);
-    /// let y = Xpr::new(-2)*Xpr::new(7);
-    /// 
+    ///
+    /// let x = -Xpr::Terminal(5)*Xpr::Terminal(6);
+    /// let y = Xpr::Terminal(-2)*Xpr::Terminal(7);
+    ///
     /// //let z = x.transform(&mut |e|{
     /// //    match e.as_xpr::<i32>() {
     /// //        // replaces 5 with 3
@@ -217,8 +217,11 @@ fn cast_optional_any<T: 'static + Copy>(x: Option<Box<dyn Any>>) -> Option<T> {
 
 /// Supported expression types.
 ///
-/// `Xpr` should not be instantiated directly. Use the [`Xpr::new`] method
-/// to create an `Xpr::Terminal` leaf and then apply operations to it.
+/// Note that [`Xpr::Terminal`] is the only variant that can be instantiated
+/// explicitly. It represents the leaf expressions of any expression. All
+/// other expressions are created by applying the supported operations to
+/// `Xpr::Terminal` instances.
+///
 pub enum Xpr<T: 'static + Copy> {
     /// A Terminal represents a leaf expression, e.g. a single value
     Terminal(T),
@@ -231,21 +234,6 @@ impl<T> Xpr<T>
 where
     T: 'static + Copy,
 {
-    /// Create a new leaf expression of type [`Xpr::Terminal`]. This is the
-    /// only way expression should be instantiated.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use xpr::*;
-    /// let x = Xpr::new(3.145);
-    /// let z = -x;
-    /// assert_eq!(z.eval(), Ok(-3.145));
-    /// ```
-    pub fn new(value: T) -> Self {
-        Xpr::<T>::Terminal(value)
-    }
-
     /// type erase the output type. This is the argument accepted by the transform closures
     fn as_anyxpr(&self) -> AnyXpr {
         AnyXpr { expr: self }
@@ -360,7 +348,7 @@ where
 
 //***********************************************************************//
 
-/// [`AnyXpr`] is a type erased version of an [`Xpr<T>`].
+/// [`AnyXpr`] is a type erased version of an [`Xpr<T>`]. It is a very thin wrapper around an [`&dyn std::any::Any`].
 ///
 /// Its sole purpose is to serve an argument in the closures passed to [`Transform::transform`].
 ///
@@ -403,7 +391,7 @@ mod tests {
             }
         };
 
-        let x = Xpr::new(3) * Xpr::new(2) * Xpr::new(7);
+        let x = Xpr::Terminal(3) * Xpr::Terminal(2) * Xpr::Terminal(7);
         assert_eq!(x.eval(), Ok(42));
         assert_eq!(x.transform::<i32>(&mut evaluator), Some(42))
     }
