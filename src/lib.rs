@@ -13,6 +13,7 @@
 //! assert_eq!(y.eval(), Ok(42));
 //! ```
 
+use std::ops;
 use std::any::Any;
 use std::marker::PhantomData;
 
@@ -37,7 +38,7 @@ pub trait Eval {
 }
 
 /// A trait for transforming expressions
-pub trait Transform {
+pub trait Transform: TransformInternal {
     /// The [`Transform::transform`] function is a central feature of this crate. It can be used to transform and manipulate
     /// expression by traversing the expression tree made up of an expression's subexpressions.
     ///
@@ -170,6 +171,14 @@ mod private {
             f: &mut dyn FnMut(&AnyXpr) -> Option<Box<dyn Any>>,
         ) -> Option<Box<dyn Any>>;
     }
+
+    /// A helper function to downcast a Option<Box<dyn Any>> to an Option<T>
+    pub fn cast_optional_any<T: 'static + Copy>(x: Option<Box<dyn Any>>) -> Option<T> {
+        match x {
+            Some(x) => x.downcast_ref::<T>().copied(),
+            _ => None,
+        }
+    }
 }
 use private::*;
 
@@ -202,14 +211,6 @@ where
 
         self.transform(&mut evaluator)
             .ok_or("Error evaluation expression")
-    }
-}
-
-/// A helper function to downcast a Option<Box<dyn Any>> to an Option<T>
-fn cast_optional_any<T: 'static + Copy>(x: Option<Box<dyn Any>>) -> Option<T> {
-    match x {
-        Some(x) => x.downcast_ref::<T>().copied(),
-        _ => None,
     }
 }
 
@@ -273,7 +274,7 @@ impl<T> Neg<T> {
 }
 impl<T> TransformInternal for Neg<T>
 where
-    T: 'static + Copy + std::ops::Neg,
+    T: 'static + Copy + ops::Neg,
 {
     fn transform_internal(
         &self,
@@ -286,12 +287,12 @@ where
     }
 }
 
-impl<T> std::ops::Neg for Xpr<T>
+impl<T> ops::Neg for Xpr<T>
 where
-    T: 'static + Copy + std::ops::Neg,
-    <T as std::ops::Neg>::Output: Copy,
+    T: 'static + Copy + ops::Neg,
+    <T as ops::Neg>::Output: Copy,
 {
-    type Output = Xpr<<T as std::ops::Neg>::Output>;
+    type Output = Xpr<<T as ops::Neg>::Output>;
     fn neg(self) -> Self::Output {
         Xpr::Neg(Box::new(Neg::<T>::new(Box::new(self))))
     }
@@ -317,9 +318,9 @@ impl<L, R> Mul<L, R> {
 }
 impl<L, R> TransformInternal for Mul<L, R>
 where
-    L: 'static + Copy + std::ops::Mul<R>,
+    L: 'static + Copy + ops::Mul<R>,
     R: 'static + Copy,
-    <L as std::ops::Mul<R>>::Output: 'static,
+    <L as ops::Mul<R>>::Output: 'static,
 {
     fn transform_internal(
         &self,
@@ -334,13 +335,13 @@ where
     }
 }
 
-impl<L, R> std::ops::Mul<Xpr<R>> for Xpr<L>
+impl<L, R> ops::Mul<Xpr<R>> for Xpr<L>
 where
-    L: 'static + Copy + std::ops::Mul<R>,
+    L: 'static + Copy + ops::Mul<R>,
     R: 'static + Copy,
-    <L as std::ops::Mul<R>>::Output: Copy,
+    <L as ops::Mul<R>>::Output: Copy,
 {
-    type Output = Xpr<<L as std::ops::Mul<R>>::Output>;
+    type Output = Xpr<<L as ops::Mul<R>>::Output>;
     fn mul(self, other: Xpr<R>) -> Self::Output {
         Xpr::Mul(Box::new(Mul::<L, R>::new(Box::new(self), Box::new(other))))
     }
@@ -394,5 +395,20 @@ mod tests {
         let x = Xpr::Terminal(3) * Xpr::Terminal(2) * Xpr::Terminal(7);
         assert_eq!(x.eval(), Ok(42));
         assert_eq!(x.transform::<i32>(&mut evaluator), Some(42))
+    }
+
+    // a struct that doesn't implement all supported operations
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    struct OnlyNeg(i32);
+    
+    impl ops::Neg for OnlyNeg {
+        type Output = Self;
+        fn neg(self) -> Self::Output { OnlyNeg(-self.0) }
+    }
+
+    #[test]
+    fn test_neg_only() {
+        let x = -Xpr::Terminal(OnlyNeg(1));
+        assert_eq!(x.eval(), Ok(OnlyNeg(-1)));
     }
 }
