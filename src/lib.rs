@@ -32,9 +32,10 @@ pub trait Eval {
     ///
     /// assert_eq!(y.eval(), Ok(42));
     /// ```
-    fn eval<R: 'static + Copy>(&self) -> Result<R, &str>
+    fn eval<R>(&self) -> Result<R, &str>
     where
-        Self: Sized;
+        Self: Sized,
+        R: 'static + Copy;
 }
 
 /// A trait for transforming expressions
@@ -137,7 +138,10 @@ pub trait Transform: TransformInternal {
     /// //assert_eq!(z.unwrap().eval(), Ok(42));
     /// ```
     ///
-    fn transform<R: 'static + Copy>(&self, f: &mut dyn FnMut(&dyn Any) -> Option<R>) -> Option<R> {
+    fn transform<R>(&self, f: &mut dyn FnMut(&dyn Any) -> Option<R>) -> Option<R>
+    where
+        R: 'static + Copy,
+    {
         let mut t = |e: &dyn Any| -> Option<Box<dyn Any>> {
             match f(e) {
                 Some(e) => Some(Box::new(e)),
@@ -180,7 +184,10 @@ mod private {
     }
 
     /// A helper function to downcast a Option<Box<dyn Any>> to an Option<T>
-    pub fn cast_optional_any<T: 'static + Copy>(x: Option<Box<dyn Any>>) -> Option<T> {
+    pub fn cast_optional_any<T>(x: Option<Box<dyn Any>>) -> Option<T>
+    where
+        T: 'static + Copy,
+    {
         match x {
             Some(x) => x.downcast_ref::<T>().copied(),
             _ => None,
@@ -217,7 +224,10 @@ where
 /// other expressions are created by applying the supported operations to
 /// `Xpr::Terminal` instances.
 ///
-pub enum Xpr<T: 'static + Copy> {
+pub enum Xpr<T>
+where
+    T: 'static + Copy,
+{
     /// A Terminal represents a leaf expression, e.g. a single value
     Terminal(T),
     /// Negation of an expression `l -> -l`
@@ -226,7 +236,10 @@ pub enum Xpr<T: 'static + Copy> {
     Mul(Box<dyn TransformInternal>),
 }
 
-impl<T: 'static + Copy> TransformInternal for Xpr<T> {
+impl<T> TransformInternal for Xpr<T>
+where
+    T: 'static + Copy,
+{
     fn transform_internal(
         &self,
         f: &mut dyn FnMut(&dyn Any) -> Option<Box<dyn Any>>,
