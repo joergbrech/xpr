@@ -24,7 +24,7 @@
 //!
 //! // create an expression
 //! let x = -Xpr::new(5)*(Xpr::new(7) + Xpr::new(-10));
-//! println!("{:?}",x)
+//! println!("{:?}",x);
 //! 
 //! x.transform(&Folder{});
 //! ```
@@ -48,7 +48,7 @@ pub trait Fold
     fn fold<T>(&mut self, _: &Xpr<T>) -> Option<Self::Output>;
 }
 
-#[derive(Clone,Copy,Debug)]
+#[derive(Debug)]
 pub enum Xpr<T> {
     Term(T),
     Neg(T),
