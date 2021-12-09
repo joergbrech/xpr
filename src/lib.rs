@@ -4,30 +4,6 @@
 //! and transform matched expressions, do any kind of calculations in between and return anything
 //! that implements the operations of the used expression.
 //!
-//! # Example usage
-//! ```rust
-//! use xpr::*;
-//! 
-//! // create a folder, which is any struct implementing `Fold`
-//! struct Folder;
-//! impl Fold for Folder {
-//!     type Output = i32;
-//!     fn fold<T>(&mut self, e: &Xpr<T>) -> Option<Self::Output> {
-//!         match e {
-//!             Xpr::Term(_) => { println!("I am a terminal!"); Some(42) },
-//!             Xpr::Neg(_) =>  { println!("I am a negation!"); None },
-//!             Xpr::Add(_) =>  { println!("I am an addition!"); Some(41) },
-//!             Xpr::Mul(_) =>  { println!("I am a multiplication!"); None },
-//!         }
-//!     }
-//! }
-//!
-//! // create an expression
-//! let x = -Xpr::new(5)*(Xpr::new(7) + Xpr::new(-10));
-//! println!("{:?}",x);
-//! 
-//! x.transform(&Folder{});
-//! ```
 
 use std::ops;
 use std::fmt;
@@ -35,42 +11,54 @@ use std::fmt;
 pub trait Transform<F>
 where F: Fold
 {
-    type Output;
-    fn transform(&self, _: &F) -> Option<Self::Output>
-    {
-        None
-    }
+    fn transform(&self, _: &mut F) -> <F as Fold>::Output;
 }
 
 pub trait Fold
 {
     type Output;
-    fn fold<T>(&mut self, _: &Xpr<T>) -> Option<Self::Output>;
+
+    fn fold_term<T>(&mut self, _: &Term<T>) -> Self::Output;
+    fn fold_neg<T>(&mut self, _: &Neg<T>) -> Self::Output;
+    fn fold_add<L,R>(&mut self, _: &Add<L,R>) -> Self::Output;
+    fn fold_mul<L,R>(&mut self, _: &Mul<L,R>) -> Self::Output;
 }
 
-#[derive(Debug)]
-pub enum Xpr<T> {
-    Term(T),
-    Neg(T),
-    Add(T),
-    Mul(T)
+pub enum Xpr<L,R> {
+    Term(Term<L>),
+    Neg(Neg<L>),
+    Add(Add<L,R>),
+    Mul(Mul<L,R>)
 }
-
-impl<T> Xpr<XprTerm<T>> {
-    pub fn new(t: T) -> Self {
-        Xpr::Term(XprTerm(Box::new(t)))
+impl<L,R> fmt::Debug for Xpr<L,R>
+where 
+    L: fmt::Debug,
+    R: fmt::Debug
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Xpr::Term(x) => x.fmt(f),
+            Xpr::Neg(x) => x.fmt(f),
+            Xpr::Add(x) => x.fmt(f),
+            Xpr::Mul(x) => x.fmt(f)
+        }
     }
 }
 
-impl<T,F> Transform<F> for Xpr<T>
+impl<T> Xpr<T,()> {
+    pub fn new(t: T) -> Self {
+        Xpr::<T,()>::Term(Term(Box::new(t)))
+    }
+}
+
+impl<L,R,F> Transform<F> for Xpr<L,R>
 where 
-T: Transform<F>,
+L: Transform<F>,
+R: Transform<F>,
 F: Fold
 {
-    type Output = <T as Transform<F>>::Output;
-    fn transform(&self, f: &F) -> Option<Self::Output>
+    fn transform(&self, f: &mut F) -> <F as Fold>::Output
     {
-        //if let Some(v) = f.fold(self) { return Some(v); }
 
         match self {
             Xpr::Term(x) => x.transform(f),
@@ -81,132 +69,78 @@ F: Fold
     }
 }
 
-pub struct XprTerm<T>(Box<T>);
-impl<T,F> Transform<F> for XprTerm<T> 
+#[derive(Debug)]
+pub struct Term<T>(Box<T>);
+impl<T,F> Transform<F> for Term<T> 
 where F: Fold
 {
-    type Output = <F as Fold>::Output;
-}
-impl<T> fmt::Debug for XprTerm<T>
-where 
-    T: fmt::Debug
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+    fn transform(&self, f: &mut F) -> <F as Fold>::Output
+    {
+        f.fold_term(self)
     }
 }
 
-pub struct XprNeg<T>{
-    input: Box<T>
-}
-impl<T,F> Transform<F> for XprNeg<T> 
+#[derive(Debug)]
+pub struct Neg<T>(Box<T>);
+impl<T,F> Transform<F> for Neg<T> 
 where 
     T: Transform<F>,
-    F: Fold,
-    <T as Transform<F>>::Output: ops::Neg
+    F: Fold
 {
-    type Output = <<T as Transform<F>>::Output as ops::Neg>::Output;
-    fn transform(&self, f: &F) -> Option<Self::Output>
+    fn transform(&self, f: &mut F) -> <F as Fold>::Output
     {
-        self.input.transform(f).map(|x| -x)
-    }
-}
-impl<T> fmt::Debug for XprNeg<T>
-where T: fmt::Debug
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.input.fmt(f)
+        f.fold_neg(self)
     }
 }
 
-pub struct XprAdd<T>{ 
-    operands: Box<T>
-}
-impl<L,R,F> Transform<F> for XprAdd<(L,R)> 
+#[derive(Debug)]
+pub struct Add<L,R>(Box<L>,Box<R>);
+impl<L,R,F> Transform<F> for Add<L,R> 
 where
     L: Transform<F>,
     R: Transform<F>,
-    F: Fold,
-    <L as Transform<F>>::Output: ops::Add<<R as Transform<F>>::Output>
+    F: Fold
 {
-    type Output = <<L as Transform<F>>::Output as ops::Add<<R as Transform<F>>::Output>>::Output;
-    fn transform(&self, f: &F) -> Option<Self::Output>
+    fn transform(&self, f: &mut F) -> <F as Fold>::Output
     {
-        if let Some(l) = self.operands.0.transform(f) {
-            if let Some(r) = self.operands.1.transform(f) {
-                return Some(l+r);
-            }
-        }
-        None
-    }
-}
-impl<L,R> fmt::Debug for XprAdd<(L,R)>
-where 
-    L: fmt::Debug,
-    R: fmt::Debug
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("")
-         .field(&self.operands.0)
-         .field(&self.operands.1)
-         .finish()
+        f.fold_add(self)
     }
 }
 
-pub struct XprMul<T>{ 
-    operands: Box<T>
-}
-impl<L,R,F> Transform<F> for XprMul<(L,R)>
+#[derive(Debug)]
+pub struct Mul<L,R>(Box<L>,Box<R>);
+impl<L,R,F> Transform<F> for Mul<L,R>
 where 
     L: Transform<F>,
     R: Transform<F>,
-    F: Fold,
-    <L as Transform<F>>::Output: ops::Mul<<R as Transform<F>>::Output>
+    F: Fold
 {
-    type Output = <<L as Transform<F>>::Output as ops::Mul<<R as Transform<F>>::Output>>::Output;
-    fn transform(&self, f: &F) -> Option<Self::Output>
+    fn transform(&self, f: &mut F) -> <F as Fold>::Output
     {
-        if let Some(l) = self.operands.0.transform(f) {
-            if let Some(r) = self.operands.1.transform(f) {
-                return Some(l*r)
-            }
-        }
-        None
-    }
-}
-impl<L,R> fmt::Debug for XprMul<(L,R)>
-where 
-    L: fmt::Debug,
-    R: fmt::Debug
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("")
-         .field(&self.operands.0)
-         .field(&self.operands.1)
-         .finish()
+        f.fold_mul(self)
     }
 }
 
 // implement operations for Xpr
 
-impl<L> ops::Neg for Xpr<L> {
-    type Output = Xpr<XprNeg<Xpr<L>>>;
+impl<L,R> ops::Neg for Xpr<L,R> {
+    type Output = Xpr<Xpr<L,R>,()>;
     fn neg(self) -> Self::Output {
-        Xpr::Neg(XprNeg{ input: Box::new(self)})
+        Xpr::Neg(Neg(Box::new(self)))
     }
 }
 
-impl<L,R> ops::Add<Xpr<R>> for Xpr<L> {
-    type Output = Xpr<XprAdd<(Xpr<L>,Xpr<R>)>>;
-    fn add(self, other: Xpr<R>) -> Self::Output {
-        Xpr::Add(XprAdd{ operands: Box::new((self,other))})
+impl<L,X,R,Y> ops::Add<Xpr<R,Y>> for Xpr<L,X> {
+    type Output = Xpr<Xpr<L,X>,Xpr<R,Y>>;
+    fn add(self, other: Xpr<R,Y>) -> Self::Output {
+        Xpr::Add(Add(Box::new(self),Box::new(other)))
     }
 }
 
-impl<L,R> ops::Mul<Xpr<R>> for Xpr<L> {
-    type Output = Xpr<XprMul<(Xpr<L>,Xpr<R>)>>;
-    fn mul(self, other: Xpr<R>) -> Self::Output {
-        Xpr::Mul(XprMul{ operands: Box::new((self,other))})
+impl<L,X,R,Y> ops::Mul<Xpr<R,Y>> for Xpr<L,X> {
+    type Output = Xpr<Xpr<L,X>,Xpr<R,Y>>;
+    fn mul(self, other: Xpr<R,Y>) -> Self::Output {
+        Xpr::Mul(Mul(Box::new(self),Box::new(other)))
     }
 }
 
