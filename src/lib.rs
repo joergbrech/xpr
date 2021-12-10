@@ -5,148 +5,151 @@
 //! that implements the operations of the used expression.
 //!
 
-use std::ops;
-use std::fmt;
-
-pub trait Transform<F>
-where F: Fold
-{
-    fn transform(&self, _: &mut F) -> <F as Fold>::Output;
+/// An enum representing expressions.
+/// Term represents a terminal leaf expression.
+/// The nested type will be a specific type
+/// representing the operation
+pub enum Xpr<T> {
+    Term(T),
+    Add(T),
 }
 
-pub trait Fold
+/// A specific type representing a terminal leaf
+/// T can be anything.
+pub struct Term<T>(T);
+
+/// A new expression is always a leaf expression
+impl<T> Xpr<Term<T>> {
+    pub fn new(t: T) -> Self {
+        Xpr::Term(Term(t))
+    }
+}
+
+/// A specific type representing an addition.
+/// T will always be a tuple type (Xpr<L>,Xpr<R>)
+pub struct Add<T>(T);
+
+// implement addition for Xpr<T> expressions
+impl<L, R> std::ops::Add<Xpr<R>> for Xpr<L> {
+    type Output = Xpr<Add<(Xpr<L>, Xpr<R>)>>;
+    fn add(self, other: Xpr<R>) -> Self::Output {
+        Xpr::Add(Add((self, other)))
+    }
+}
+
+// The types get a bit yucky...let's add some shorthand notation
+pub type OutputFoldable<F, T> = <T as Foldable<F>>::Output;
+pub type OutputFoldableAdd<F, L, R> =
+    <OutputFoldable<F, L> as std::ops::Add<OutputFoldable<F, R>>>::Output;
+
+// implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
+pub trait Fold {
+    fn fold_term<T>(&mut self, x: Term<T>) -> Xpr<Term<T>> {
+        println!("A terminal!");
+        Xpr::Term(x)
+    }
+
+    fn fold_add<L, R>(&mut self, x: Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
+    where
+        L: Foldable<Self>,
+        R: Foldable<Self>,
+        OutputFoldable<Self, L>: std::ops::Add<OutputFoldable<Self, R>>,
+    {
+        println!("An addition");
+
+        // ping-pongs to to the Foldable::fold impl for Xpr<T> for both arguments
+        // and applies the operation +
+        (x.0 .0).fold(self) + (x.0 .1).fold(self)
+    }
+
+    fn fold<T>(&mut self, x: Xpr<T>) -> <T as Foldable<Self>>::Output
+    where
+        T: Foldable<Self>,
+    {
+        // ping-pong to the Foldable::fold impl for Term<T> and Add<L,R>
+        match x {
+            Xpr::Term(x) => x.fold(self),
+            Xpr::Add(x) => x.fold(self),
+        }
+    }
+}
+
+mod private {
+    use super::*;
+
+    pub trait Sealed<F: ?Sized> {}
+
+    impl<F, T> Sealed<F> for T
+    where
+        T: Foldable<F>,
+        F: Fold + ?Sized,
+    {
+    }
+}
+
+/// A ping-pong trait needed to implement the fold pattern to recurse the generic expressionin Xpr:
+///
+/// The methods in Fold will unwrap an explicit `Xpr<T>` containing a generic Foldable type. It will
+/// forward the nested generic element to the methods in Foldable, which will expand the generic
+/// type to the explicit type of the expression.
+///
+/// The Foldable implementations will then ping-pong the call back to the methods in Fold that handle
+/// concrete types. These methods can in turn recurse to the wrapped internal generic Foldable type
+/// by ping-ponging back to the Foldable trait, which will expand the ....
+///
+/// The ping-pong recursion ends when we hit a leaf expression in Fold::fold_term, which will not
+/// trigger a recursion to a nested foldable type.
+#[doc(hidden)]
+pub trait Foldable<F>: private::Sealed<F>
+where
+    F: Fold + ?Sized,
 {
     type Output;
-
-    fn fold_term<T>(&mut self, _: &Term<T>) -> Self::Output;
-    fn fold_neg<T>(&mut self, _: &Neg<T>) -> Self::Output;
-    fn fold_add<L,R>(&mut self, _: &Add<L,R>) -> Self::Output;
-    fn fold_mul<L,R>(&mut self, _: &Mul<L,R>) -> Self::Output;
+    fn fold(self, _: &mut F) -> Self::Output;
 }
 
-pub enum Xpr<L,R> {
-    Term(Term<L>),
-    Neg(Neg<L>),
-    Add(Add<L,R>),
-    Mul(Mul<L,R>)
-}
-impl<L,R> fmt::Debug for Xpr<L,R>
-where 
-    L: fmt::Debug,
-    R: fmt::Debug
+impl<T, F> Foldable<F> for Xpr<T>
+where
+    T: Foldable<F>,
+    F: Fold,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Xpr::Term(x) => x.fmt(f),
-            Xpr::Neg(x) => x.fmt(f),
-            Xpr::Add(x) => x.fmt(f),
-            Xpr::Mul(x) => x.fmt(f)
-        }
+    type Output = OutputFoldable<F, T>;
+
+    // ping-pongs to Fold::fold
+    fn fold(self, f: &mut F) -> Self::Output {
+        f.fold(self)
     }
 }
 
-impl<T> Xpr<T,()> {
-    pub fn new(t: T) -> Self {
-        Xpr::<T,()>::Term(Term(Box::new(t)))
-    }
-}
-
-impl<L,R,F> Transform<F> for Xpr<L,R>
-where 
-L: Transform<F>,
-R: Transform<F>,
-F: Fold
+impl<T, F> Foldable<F> for Term<T>
+where
+    F: Fold,
 {
-    fn transform(&self, f: &mut F) -> <F as Fold>::Output
-    {
+    type Output = Xpr<Term<T>>;
 
-        match self {
-            Xpr::Term(x) => x.transform(f),
-            Xpr::Neg(x) => x.transform(f),
-            Xpr::Add(x) => x.transform(f),
-            Xpr::Mul(x) => x.transform(f)
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Term<T>(Box<T>);
-impl<T,F> Transform<F> for Term<T> 
-where F: Fold
-{
-    fn transform(&self, f: &mut F) -> <F as Fold>::Output
-    {
+    // ping-pongs to Fold::fold
+    fn fold(self, f: &mut F) -> Self::Output {
         f.fold_term(self)
     }
 }
 
-#[derive(Debug)]
-pub struct Neg<T>(Box<T>);
-impl<T,F> Transform<F> for Neg<T> 
-where 
-    T: Transform<F>,
-    F: Fold
-{
-    fn transform(&self, f: &mut F) -> <F as Fold>::Output
-    {
-        f.fold_neg(self)
-    }
-}
-
-#[derive(Debug)]
-pub struct Add<L,R>(Box<L>,Box<R>);
-impl<L,R,F> Transform<F> for Add<L,R> 
+impl<L, R, F> Foldable<F> for Add<(L, R)>
 where
-    L: Transform<F>,
-    R: Transform<F>,
-    F: Fold
+    L: Foldable<F>,
+    R: Foldable<F>,
+    F: Fold,
+    OutputFoldable<F, L>: std::ops::Add<OutputFoldable<F, R>>,
 {
-    fn transform(&self, f: &mut F) -> <F as Fold>::Output
-    {
+    type Output = OutputFoldableAdd<F, L, R>;
+
+    // ping-pongs to Fold::fold
+    fn fold(self, f: &mut F) -> Self::Output {
         f.fold_add(self)
     }
 }
 
-#[derive(Debug)]
-pub struct Mul<L,R>(Box<L>,Box<R>);
-impl<L,R,F> Transform<F> for Mul<L,R>
-where 
-    L: Transform<F>,
-    R: Transform<F>,
-    F: Fold
-{
-    fn transform(&self, f: &mut F) -> <F as Fold>::Output
-    {
-        f.fold_mul(self)
-    }
-}
-
-// implement operations for Xpr
-
-impl<L,R> ops::Neg for Xpr<L,R> {
-    type Output = Xpr<Xpr<L,R>,()>;
-    fn neg(self) -> Self::Output {
-        Xpr::Neg(Neg(Box::new(self)))
-    }
-}
-
-impl<L,X,R,Y> ops::Add<Xpr<R,Y>> for Xpr<L,X> {
-    type Output = Xpr<Xpr<L,X>,Xpr<R,Y>>;
-    fn add(self, other: Xpr<R,Y>) -> Self::Output {
-        Xpr::Add(Add(Box::new(self),Box::new(other)))
-    }
-}
-
-impl<L,X,R,Y> ops::Mul<Xpr<R,Y>> for Xpr<L,X> {
-    type Output = Xpr<Xpr<L,X>,Xpr<R,Y>>;
-    fn mul(self, other: Xpr<R,Y>) -> Self::Output {
-        Xpr::Mul(Mul(Box::new(self),Box::new(other)))
-    }
-}
-
 #[cfg(test)]
-mod tests
-{
+mod tests {
     // use super::*;
 
     // struct Evaluator;
