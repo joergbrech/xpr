@@ -8,7 +8,7 @@ impl Fold for Evaluator {
     type TerminalType = i32;
     type TerminalFoldOutput = i32;
     /// replaces Terminal i32 values by their wrapped type
-    fn fold_term(&mut self, x: Term<Self::TerminalType>) -> Self::TerminalFoldOutput
+    fn fold_term(&mut self, x: &Term<Self::TerminalType>) -> Self::TerminalFoldOutput
     {
         x.0
     }
@@ -21,7 +21,7 @@ impl Fold for Fortytwoify {
     type TerminalType = i32;
     type TerminalFoldOutput = Xpr<Term<i32>>;
     // replaces i32 terminals with other terminals of the same type
-    fn fold_term(&mut self, _: Term<Self::TerminalType>) -> Self::TerminalFoldOutput
+    fn fold_term(&mut self, _: &Term<Self::TerminalType>) -> Self::TerminalFoldOutput
     {
         Xpr::new(42)
     }
@@ -29,13 +29,16 @@ impl Fold for Fortytwoify {
 }
 
 pub fn main() {
-    let x = Xpr::new(5) + Xpr::new(8) + Xpr::new(17);
+    let x = Xpr::new(10) + Xpr::new(15) + Xpr::new(17);
     println!("x = {:?}", x);
 
-    let x = Fortytwoify.fold(x); // <-- in the current implementation fold consumes x
-    println!("x = {:?}", x);
+    let res = Evaluator.fold(&x);
+    println!("res = {}", res);
 
-    let y = Evaluator.fold(x);
-    println!("y = {}", y);
+    let y = Fortytwoify.fold(&x);
+    println!("y = {:?}", y);
+
+    let res = Evaluator.fold(&y);
+    println!("res = {}", res);
 
 }
