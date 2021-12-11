@@ -3,7 +3,8 @@
 //! Expressions can be evaluated or manipulated using transforms, which match subexpressions,
 //! and transform matched expressions, do any kind of calculations in between and return anything
 //! that implements the operations of the used expression.
-//!
+
+use std::fmt;
 
 /// An enum representing expressions.
 /// Term represents a terminal leaf expression.
@@ -13,10 +14,20 @@ pub enum Xpr<T> {
     Term(T),
     Add(T),
 }
+impl<T> fmt::Debug for Xpr<T> where T: fmt::Debug 
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Xpr::Term(x) => x.fmt(f),
+            Xpr::Add(x) => x.fmt(f)
+        }
+    }
+}
 
 /// A specific type representing a terminal leaf
 /// T can be anything.
-pub struct Term<T>(T);
+#[derive(Debug)]
+pub struct Term<T>(pub T);
 
 /// A new expression is always a leaf expression
 impl<T> Xpr<Term<T>> {
@@ -27,6 +38,7 @@ impl<T> Xpr<Term<T>> {
 
 /// A specific type representing an addition.
 /// T will always be a tuple type (Xpr<L>,Xpr<R>)
+#[derive(Debug)]
 pub struct Add<T>(T);
 
 // implement addition for Xpr<T> expressions
@@ -44,10 +56,11 @@ pub type OutputFoldableAdd<F, L, R> =
 
 // implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
 pub trait Fold {
-    fn fold_term<T>(&mut self, x: Term<T>) -> Xpr<Term<T>> {
-        println!("A terminal!");
-        Xpr::Term(x)
-    }
+
+    type TerminalType;
+    type TerminalFoldOutput;
+
+    fn fold_term(&mut self, _: Term<Self::TerminalType>) -> Self::TerminalFoldOutput;
 
     fn fold_add<L, R>(&mut self, x: Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
     where
@@ -55,8 +68,6 @@ pub trait Fold {
         R: Foldable<Self>,
         OutputFoldable<Self, L>: std::ops::Add<OutputFoldable<Self, R>>,
     {
-        println!("An addition");
-
         // ping-pongs to to the Foldable::fold impl for Xpr<T> for both arguments
         // and applies the operation +
         (x.0 .0).fold(self) + (x.0 .1).fold(self)
@@ -123,9 +134,9 @@ where
 
 impl<T, F> Foldable<F> for Term<T>
 where
-    F: Fold,
+    F: Fold<TerminalType = T>
 {
-    type Output = Xpr<Term<T>>;
+    type Output = <F as Fold>::TerminalFoldOutput;
 
     // ping-pongs to Fold::fold
     fn fold(self, f: &mut F) -> Self::Output {
