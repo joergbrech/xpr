@@ -3,6 +3,7 @@
 //! Expressions can be evaluated or manipulated using transforms, which match subexpressions,
 //! and transform matched expressions, do any kind of calculations in between and return anything
 //! that implements the operations of the used expression.
+#![feature(generic_associated_types)]
 
 use std::fmt;
 
@@ -15,12 +16,14 @@ pub enum Xpr<T> {
     Add(T),
 }
 
-impl<T> fmt::Debug for Xpr<T> where T: fmt::Debug 
+impl<T> fmt::Debug for Xpr<T>
+where
+    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Xpr::Term(x) => x.fmt(f),
-            Xpr::Add(x) => x.fmt(f)
+            Xpr::Add(x) => x.fmt(f),
         }
     }
 }
@@ -57,13 +60,11 @@ pub type OutputFoldableAdd<F, L, R> =
 
 // implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
 pub trait Fold {
+    type Output<T>;
 
-    type TerminalType;
-    type TerminalFoldOutput;
+    fn fold_term<T>(&mut self, _: Term<T>) -> Self::Output<T>;
 
-    fn fold_term(&mut self, _: &Term<Self::TerminalType>) -> Self::TerminalFoldOutput;
-
-    fn fold_add<L, R>(&mut self, x: &Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
+    fn fold_add<L, R>(&mut self, x: Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
     where
         L: Foldable<Self>,
         R: Foldable<Self>,
@@ -74,7 +75,7 @@ pub trait Fold {
         (x.0 .0).fold(self) + (x.0 .1).fold(self)
     }
 
-    fn fold<T>(&mut self, x: &Xpr<T>) -> <T as Foldable<Self>>::Output
+    fn fold<T>(&mut self, x: Xpr<T>) -> OutputFoldable<Self, T>
     where
         T: Foldable<Self>,
     {
@@ -117,7 +118,7 @@ where
     F: Fold + ?Sized,
 {
     type Output;
-    fn fold(&self, _: &mut F) -> Self::Output;
+    fn fold(self, _: &mut F) -> Self::Output;
 }
 
 impl<T, F> Foldable<F> for Xpr<T>
@@ -128,19 +129,19 @@ where
     type Output = OutputFoldable<F, T>;
 
     // ping-pongs to Fold::fold
-    fn fold(&self, f: &mut F) -> Self::Output {
+    fn fold(self, f: &mut F) -> Self::Output {
         f.fold(self)
     }
 }
 
 impl<T, F> Foldable<F> for Term<T>
 where
-    F: Fold<TerminalType = T>
+    F: Fold,
 {
-    type Output = <F as Fold>::TerminalFoldOutput;
+    type Output = <F as Fold>::Output<T>;
 
     // ping-pongs to Fold::fold
-    fn fold(&self, f: &mut F) -> Self::Output {
+    fn fold(self, f: &mut F) -> Self::Output {
         f.fold_term(self)
     }
 }
@@ -155,7 +156,7 @@ where
     type Output = OutputFoldableAdd<F, L, R>;
 
     // ping-pongs to Fold::fold
-    fn fold(&self, f: &mut F) -> Self::Output {
+    fn fold(self, f: &mut F) -> Self::Output {
         f.fold_add(self)
     }
 }
