@@ -52,7 +52,7 @@ where
 {
     fn from(expr: Xpr<T>) -> Self {
         let mut ret = VecN([0.;N]);
-        for i in 0..3 {
+        for i in 0..N {
             ret.0[i] = IthElement(i).fold(&expr);
         }
         ret
@@ -79,9 +79,10 @@ pub fn main() {
     println!("res = {}", res);
 
     // Now let's have a chained addition of vectors without any temporaries
-    let x1 = VecN([1., 2., 3.]).to_xpr();
-    let x2 = VecN([10., 20., 30.]).to_xpr();
-    let x3 = VecN([100., 200., 300.]).to_xpr();
-    let v = VecN::from(x1 + x2 + x3);
+    let x1 = VecN([   1.,    2.,    3.,    4.]).to_xpr();
+    let x2 = VecN([  10.,   20.,   30.,   40.]).to_xpr();
+    let x3 = VecN([ 100.,  200.,  300.,  400.]).to_xpr();
+    let x4 = VecN([1000., 2000., 3000., 4000.]).to_xpr();
+    let v = VecN::from(x1 + x2 + x3 + x4);
     println!("v = {:?}", v);
 }
