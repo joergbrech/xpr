@@ -42,13 +42,12 @@ impl Fold for NthElement {
 
 impl<T> From<Xpr<T>> for Vec3
 where
-    T: Foldable<NthElement>,
-    OutputFoldable<NthElement, T>: Into<f64>,
+    T: Foldable<NthElement, Output=f64>
 {
     fn from(expr: Xpr<T>) -> Self {
         let mut ret = Vec3([0., 0., 0.]);
         for i in 0..3 {
-            ret.0[i] = NthElement(i).fold(&expr).into();
+            ret.0[i] = NthElement(i).fold(&expr);
         }
         ret
     }

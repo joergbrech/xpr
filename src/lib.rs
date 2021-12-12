@@ -1,6 +1,6 @@
 //! This crate allows you to use expression templates with your custom type.
 //! It is inspired by the C++ expression template library [boost::yap](https://www.boost.org/doc/libs/1_74_0/doc/html/yap.html).
-//! It currently relies on the unstable `generic_associated_types` feature.
+//! It currently relies on the unstable `generic_associated_types` feature. It uses no dynamic dispatch for performance reasons.
 //!
 //! To use `xpr`, all you need to do is wrap all input variables to an expression in calls to `Xpr::new` and apply any supported
 //! operation to them. The result will be an object representing the operations you performed. Any possible chain of operations
@@ -39,7 +39,6 @@
 //! assert_eq!(y.eval(), 84);
 //! ```
 //!
-//! All of this is implemented only with generics static dispatch for maximum performance.
 //!
 #![feature(generic_associated_types)]
 
