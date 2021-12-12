@@ -28,24 +28,30 @@ impl Fold for Fortytwoify {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct Vec3([f64; 3]);
+struct MyVec<const N: usize>([f64; N]);
+impl<const N: usize> MyVec<{N}> {
+    fn to_xpr(self) -> Xpr<Term<Self>>
+    {
+        Xpr::new(self)
+    }
+}
 
-struct NthElement(usize);
-impl Fold for NthElement {
-    type TerminalType<T> = Vec3;
+struct NthElement<const N: usize>(usize);
+impl<const N: usize> Fold for NthElement<{N}> {
+    type TerminalType<T> = MyVec<{N}>;
     type Output<T> = f64;
     // extracts the n-th element of a terminal
-    fn fold_term<T>(&mut self, Term(v): &Term<Vec3>) -> f64 {
+    fn fold_term<T>(&mut self, Term(v): &Term<MyVec<{N}>>) -> f64 {
         v.0[self.0]
     }
 }
 
-impl<T> From<Xpr<T>> for Vec3
+impl<T,const N: usize> From<Xpr<T>> for MyVec<{N}>
 where
-    T: Foldable<NthElement, Output=f64>
+    T: Foldable<NthElement<{N}>, Output=f64>
 {
     fn from(expr: Xpr<T>) -> Self {
-        let mut ret = Vec3([0., 0., 0.]);
+        let mut ret = MyVec([0.;N]);
         for i in 0..3 {
             ret.0[i] = NthElement(i).fold(&expr);
         }
@@ -73,9 +79,9 @@ pub fn main() {
     println!("res = {}", res);
 
     // Now let's have a chained addition of vectors without any temporaries
-    let x1 = Xpr::new(Vec3([1., 2., 3.]));
-    let x2 = Xpr::new(Vec3([10., 20., 30.]));
-    let x3 = Xpr::new(Vec3([100., 200., 300.]));
-    let v = Vec3::from(x1 + x2 + x3);
+    let x1 = MyVec([1., 2., 3.]).to_xpr();
+    let x2 = MyVec([10., 20., 30.]).to_xpr();
+    let x3 = MyVec([100., 200., 300.]).to_xpr();
+    let v = MyVec::from(x1 + x2 + x3);
     println!("v = {:?}", v);
 }
