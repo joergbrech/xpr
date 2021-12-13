@@ -1,4 +1,4 @@
-use xpr::{ops::Term, Xpr, Fold};
+use xpr::{ops::Term, Fold, Xpr};
 
 struct Fortytwoify;
 

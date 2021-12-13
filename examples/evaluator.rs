@@ -1,4 +1,4 @@
-use xpr::{Xpr, Fold, Foldable, ops::Term};
+use xpr::{ops::Term, Fold, Foldable, Xpr};
 
 pub struct Evaluator;
 

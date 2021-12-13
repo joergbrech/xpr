@@ -52,11 +52,8 @@
 //! ```
 //!
 //! Refer to the documentation of [`Fold`] for more useful examples.
-
 use std::fmt;
 use std::marker::PhantomData;
-use crate::ops::*;
-use crate::fold::*;
 
 /// All supported operations. Any expression will be of this type. `Xpr` together with the
 /// [`Fold`] trait are at the heart of this crate.
@@ -82,15 +79,37 @@ pub enum Xpr<T> {
     Add(T),
 }
 
+impl<T> Xpr<ops::Term<T>> {
+    /// creates a new  leaf expression.
+    #[inline]
+    pub const fn new(t: T) -> Self {
+        Self::Term(ops::Term(t))
+    }
+}
+
+impl<T, F> Foldable<F> for Xpr<T>
+where
+    T: Foldable<F>,
+    F: Fold,
+{
+    type Output = fold::OutputFoldable<F, T>;
+
+    // ping-pongs to Fold::fold
+    #[inline]
+    fn fold(&self, f: &mut F) -> Self::Output {
+        f.fold(self)
+    }
+}
+
 impl<U> Xpr<U> {
     /// evaluates the expression by unwrapping all terminals and applying the operations
     /// in the expression. It is synactic sugar for folding the expression with the [`Evaluator`].
-    pub fn eval<T>(&self) -> OutputFoldable<Evaluator<T>, Self>
+    pub fn eval<T>(&self) -> fold::OutputFoldable<fold::Evaluator<T>, Self>
     where
         T: Copy,
-        U: Foldable<Evaluator<T>>,
+        U: Foldable<fold::Evaluator<T>>,
     {
-        Evaluator(PhantomData::<T>).fold(self)
+        fold::Evaluator(PhantomData::<T>).fold(self)
     }
 }
 
@@ -109,7 +128,7 @@ where
 /// contains structs representing the supported operations by xpr. These only need to be used if you intend
 /// to implement the [`Fold`] trait.
 pub mod ops {
-    use super::*;
+    use super::{*, fold::*};
 
     /// An `Xpr::Term(Term)` instance is a leaf in an
     /// expression tree, e.g. a single value with no
@@ -117,11 +136,16 @@ pub mod ops {
     #[derive(Debug)]
     pub struct Term<T>(pub T);
 
-    impl<T> Xpr<Term<T>> {
-        /// creates a new  leaf expression.
+    impl<T, F> Foldable<F> for Term<T>
+    where
+        F: Fold<TerminalType = T>,
+    {
+        type Output = <F as Fold>::Output;
+
+        // ping-pongs to Fold::fold
         #[inline]
-        pub const fn new(t: T) -> Self {
-            Self::Term(Term(t))
+        fn fold(&self, f: &mut F) -> Self::Output {
+            f.fold_term(self)
         }
     }
 
@@ -141,19 +165,33 @@ pub mod ops {
         }
     }
 
+    impl<L, R, F> Foldable<F> for Add<(L, R)>
+    where
+        L: Foldable<F>,
+        R: Foldable<F>,
+        F: Fold,
+        OutputFoldable<F, L>: std::ops::Add<OutputFoldable<F, R>>,
+    {
+        type Output = OutputFoldableAdd<F, L, R>;
+
+        // ping-pongs to Fold::fold
+        #[inline]
+        fn fold(&self, f: &mut F) -> Self::Output {
+            f.fold_add(self)
+        }
+    }
+
     /// The output of the addition of two `OutputFoldable<F,_>` types, where `F` implements [`Fold`]
     pub type OutputFoldableAdd<F, L, R> =
         <OutputFoldable<F, L> as std::ops::Add<OutputFoldable<F, R>>>::Output;
 }
 
-
-/// contains the [`Fold`] and [`Foldable`] traits, as well as implementors of [`Fold`] for 
+/// contains the [`Fold`] and [`Foldable`] traits, as well as implementors of [`Fold`] for
 /// convenience
-pub mod fold
-{
-    use super::*;
+pub mod fold {
+    use super::{*, ops::*};
 
-    /// internal type for evaluating expression. It folds each terminal in an expression tree to its wrapped 
+    /// internal type for evaluating expression. It folds each terminal in an expression tree to its wrapped
     /// type and performs the operations on its upwards traversal through the tree, thus evaluating the expression.
     pub struct Evaluator<T>(pub PhantomData<T>);
 
@@ -169,9 +207,6 @@ pub mod fold
             *x
         }
     }
-
-    /// The output of `T` as `Foldable` by `F`, where `F` implements [`Fold`]
-    pub type OutputFoldable<F, T> = <T as Foldable<F>>::Output;
 
     /// A trait for expression manipulation. `Fold` together with [`Xpr`] are at the heart of this crate.
     pub trait Fold {
@@ -243,62 +278,21 @@ pub mod fold
     where
         F: Fold + ?Sized,
     {
-
         /// The output of the fold operation
         type Output;
 
         fn fold(&self, _: &mut F) -> Self::Output;
     }
 
-    impl<T, F> Foldable<F> for Xpr<T>
-    where
-        T: Foldable<F>,
-        F: Fold,
-    {
-        type Output = OutputFoldable<F, T>;
-
-        // ping-pongs to Fold::fold
-        #[inline]
-        fn fold(&self, f: &mut F) -> Self::Output {
-            f.fold(self)
-        }
-    }
-
-    impl<T, F> Foldable<F> for Term<T>
-    where
-        F: Fold<TerminalType = T>,
-    {
-        type Output = <F as Fold>::Output;
-
-        // ping-pongs to Fold::fold
-        #[inline]
-        fn fold(&self, f: &mut F) -> Self::Output {
-            f.fold_term(self)
-        }
-    }
-
-    impl<L, R, F> Foldable<F> for Add<(L, R)>
-    where
-        L: Foldable<F>,
-        R: Foldable<F>,
-        F: Fold,
-        OutputFoldable<F, L>: std::ops::Add<OutputFoldable<F, R>>,
-    {
-        type Output = OutputFoldableAdd<F, L, R>;
-
-        // ping-pongs to Fold::fold
-        #[inline]
-        fn fold(&self, f: &mut F) -> Self::Output {
-            f.fold_add(self)
-        }
-    }
+    /// The output of `T` as `Foldable` by `F`, where `F` implements [`Fold`]
+    pub type OutputFoldable<F, T> = <T as Foldable<F>>::Output;
 }
 
 pub use fold::{Fold, Foldable};
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{*, fold::*, ops::*};
 
     struct FortytwoifyI32;
     impl Fold for FortytwoifyI32 {
