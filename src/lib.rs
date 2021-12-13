@@ -1,6 +1,5 @@
 //! This crate allows you to use expression templates with your custom type.
 //! It is inspired by the C++ expression template library [boost::yap](https://www.boost.org/doc/libs/1_74_0/doc/html/yap.html).
-//! It currently relies on the unstable `generic_associated_types` feature. It uses no dynamic dispatch for performance reasons.
 //!
 //! To use `xpr`, all you need to do is wrap all input variables to an expression in calls to `Xpr::new` and apply any supported
 //! operation to them. The result will be an object representing the operations you performed. Any possible chain of operations
@@ -9,40 +8,53 @@
 //! Evaluation of the expression is be performed lazily by calling `Xpr::eval`:
 //!
 //! ```
-//! #![feature(generic_associated_types)]
-//! use xpr::*;
+//! use xpr::Xpr;
 //!
+//! // create an exression. x will be a type representing the
+//! // addition of 7 and 5, not the result of the calculation
 //! let x = Xpr::new(7) + Xpr::new(5);
+//!
+//! // lazily evaluate the expression
 //! assert_eq!(x.eval(), 12);
 //! ```
 //!
-//! In addition to lazy evaluation, you can manipulate expressions using the [`Fold`] trait. You define a `struct` as a
-//! manipulator and implement the `Fold` trait for it. The [`Fold::fold_term`] function will manipulate all terminals in
-//! an expression and it is likely the only function that needs to be overwritten.
+//! In addition to lazy evaluation, you can manipulate expressions using the [`Fold`] trait. A struct implementing `Fold`
+//! can replace terminals *(leaf expressions)* in an expression and perform operations on the way. It can be stateful or a
+//! zero-sized type, depending on your needs.
 //!
 //! ```
-//! #![feature(generic_associated_types)]
-//! use xpr::{*, ops::*};
+//! use xpr::{Xpr, Fold, ops::Term};
 //!
 //! struct Fortytwoify;
+//!
 //! impl Fold for Fortytwoify {
-//!     type TerminalType<T> = T;
-//!     type Output<T> = Xpr<Term<i32>>;
-//!     // replaces all terminals with terminals wrapping the value 42
-//!     fn fold_term<T>(&mut self, _: &Term<T>) -> Self::Output<T> {
+//!
+//!     // We will only manipulate terminal expressions wrapping i32 values
+//!     type TerminalType = i32;
+//!
+//!     // We will replace these terminals by terminal expressions wrapping i32 values
+//!     type Output = Xpr<Term<i32>>;
+//!
+//!     // replaces terminals with terminals wrapping the value 42
+//!     fn fold_term(&mut self, _: &Term<i32>) -> Self::Output {
 //!         Xpr::new(42)
 //!     }
 //! }
 //!
+//! // create an expression
 //! let x = Xpr::new(7) + Xpr::new(5);
+//!
+//! // fortitwoify the expression
 //! let y = Fortytwoify.fold(&x);
+//!
+//! // lazily evaluate the expression
 //! assert_eq!(y.eval(), 84);
 //! ```
 //!
-//!
-#![feature(generic_associated_types)]
+//! Refer to the documentation of [`Fold`] for less contrived examples.
 
 use std::fmt;
+use std::marker::PhantomData;
 
 /// All supported operations.
 ///
@@ -67,30 +79,31 @@ pub enum Xpr<T> {
     Add(T),
 }
 
-impl<T> Xpr<T>
-where
-    T: Foldable<Evaluator>,
-{
+impl<U> Xpr<U> {
     /// evaluates the expression by unwrapping all terminals and applying the operations
     /// in the expression. It is synactic sugar for folding the expression with the [`Evaluator`].
-    pub fn eval(&self) -> OutputFoldable<Evaluator, Self> {
-        Evaluator.fold(self)
+    pub fn eval<T>(&self) -> OutputFoldable<Evaluator<T>, Self>
+    where
+        T: Copy,
+        U: Foldable<Evaluator<T>>,
+    {
+        Evaluator(PhantomData::<T>).fold(self)
     }
 }
 
 /// A zero-sized type that implements the [`Fold`] trait. It folds each terminal in an expression
 /// tree to its wrapped type and performs the operations on its upwards traversal through the
 /// tree, thus evaluating the expression.
-pub struct Evaluator;
-impl Fold for Evaluator {
-    type TerminalType<T> = T;
-    type Output<T> = T;
+pub struct Evaluator<T>(PhantomData<T>);
+impl<T> Fold for Evaluator<T>
+where
+    T: Copy,
+{
+    type TerminalType = T;
+    type Output = Self::TerminalType;
     /// replaces Terminal values with their wrapped type
-    fn fold_term<T>(&mut self, x: &Term<T>) -> T
-    where
-        T: Copy,
-    {
-        x.0
+    fn fold_term(&mut self, Term(x): &Term<T>) -> T {
+        *x
     }
 }
 
@@ -101,8 +114,7 @@ where
     // delegates formatter to wrapped type
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Xpr::Term(x) => x.fmt(f),
-            Xpr::Add(x) => x.fmt(f),
+            Xpr::Term(x) | Xpr::Add(x) => x.fmt(f),
         }
     }
 }
@@ -110,7 +122,7 @@ where
 /// contains structs representing the supported operations by xpr. These only need to be used if you intend
 /// to implement the [`Fold`] trait.
 pub mod ops {
-    use super::*;
+    use super::Xpr;
 
     /// An `Xpr::Term(Term)` instance is a leaf in an
     /// expression tree, e.g. a single value with no
@@ -120,8 +132,8 @@ pub mod ops {
 
     impl<T> Xpr<Term<T>> {
         /// creates a new  leaf expression.
-        pub fn new(t: T) -> Self {
-            Xpr::Term(Term(t))
+        pub const fn new(t: T) -> Self {
+            Self::Term(Term(t))
         }
     }
 
@@ -134,7 +146,7 @@ pub mod ops {
 
     // implement addition for Xpr<T> expressions
     impl<L, R> std::ops::Add<Xpr<R>> for Xpr<L> {
-        type Output = Xpr<Add<(Xpr<L>, Xpr<R>)>>;
+        type Output = Xpr<Add<(Self, Xpr<R>)>>;
         fn add(self, other: Xpr<R>) -> Self::Output {
             Xpr::Add(Add((self, other)))
         }
@@ -154,14 +166,12 @@ pub trait Fold {
     // implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
 
     ///
-    type TerminalType<T>;
+    type TerminalType;
 
     /// The output of [`Fold::fold_term`]
-    type Output<T>;
+    type Output;
 
-    fn fold_term<T>(&mut self, _: &Term<Self::TerminalType<T>>) -> Self::Output<T>
-    where
-        T: Copy;
+    fn fold_term(&mut self, _: &Term<Self::TerminalType>) -> Self::Output;
 
     fn fold_add<L, R>(&mut self, x: &Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
     where
@@ -180,15 +190,16 @@ pub trait Fold {
     {
         // ping-pong to the Foldable::fold impl for Term<T> and Add<L,R>
         match x {
-            Xpr::Term(x) => x.fold(self),
-            Xpr::Add(x) => x.fold(self),
+            Xpr::Term(y) | Xpr::Add(y) => y.fold(self),
         }
     }
 }
 
+/// Just contains the Sealed pattern to make Foldable not implementable from the outside
 mod private {
-    use super::*;
+    use super::{Fold, Foldable};
 
+    /// Sealed pattern to make Foldable not implementable from the outside
     pub trait Sealed<F: ?Sized> {}
 
     impl<F, T> Sealed<F> for T
@@ -228,6 +239,7 @@ where
     type Output = OutputFoldable<F, T>;
 
     // ping-pongs to Fold::fold
+    #[inline]
     fn fold(&self, f: &mut F) -> Self::Output {
         f.fold(self)
     }
@@ -235,12 +247,12 @@ where
 
 impl<T, F> Foldable<F> for Term<T>
 where
-    F: Fold<TerminalType<T> = T>,
-    T: Copy,
+    F: Fold<TerminalType = T>,
 {
-    type Output = <F as Fold>::Output<T>;
+    type Output = <F as Fold>::Output;
 
     // ping-pongs to Fold::fold
+    #[inline]
     fn fold(&self, f: &mut F) -> Self::Output {
         f.fold_term(self)
     }
