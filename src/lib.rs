@@ -292,13 +292,13 @@ pub use fold::{Fold, Foldable};
 
 #[cfg(test)]
 mod tests {
-    use super::{*, fold::*, ops::*};
+    use super::{*, ops};
 
     struct FortytwoifyI32;
     impl Fold for FortytwoifyI32 {
         type TerminalType = i32;
-        type Output = Xpr<Term<i32>>;
-        fn fold_term(&mut self, _: &Term<i32>) -> Self::Output {
+        type Output = Xpr<ops::Term<i32>>;
+        fn fold_term(&mut self, _: &ops::Term<i32>) -> Self::Output {
             Xpr::new(42)
         }
     }
@@ -314,7 +314,7 @@ mod tests {
     fn test_eval() {
         let x = Xpr::new(1) + Xpr::new(5);
         assert_eq!(x.eval(), 6);
-        assert_eq!(x.eval(), x.fold(&mut Evaluator(PhantomData::<i32>)));
-        assert_eq!(x.eval(), Evaluator(PhantomData::<i32>).fold(&x));
+        assert_eq!(x.eval(), x.fold(&mut fold::Evaluator(PhantomData::<i32>)));
+        assert_eq!(x.eval(), fold::Evaluator(PhantomData::<i32>).fold(&x));
     }
 }
