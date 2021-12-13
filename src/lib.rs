@@ -161,7 +161,6 @@ use ops::{Add, OutputFoldableAdd, Term};
 /// The output of `T` as `Foldable` by `F`, where `F` implements [`Fold`]
 pub type OutputFoldable<F, T> = <T as Foldable<F>>::Output;
 
-
 /// A trait for expression manipulation. `Fold` together with [`Xpr`] are at the heart of this crate.
 pub trait Fold {
     // implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
