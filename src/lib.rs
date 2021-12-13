@@ -51,12 +51,13 @@
 //! assert_eq!(y.eval(), 84);
 //! ```
 //!
-//! Refer to the documentation of [`Fold`] for less contrived examples.
+//! Refer to the documentation of [`Fold`] for more useful examples.
 
 use std::fmt;
 use std::marker::PhantomData;
 
-/// All supported operations. Any expression will be of this type.
+/// All supported operations. Any expression will be of this type. `Xpr` together with the
+/// [`Fold`] trait are at the heart of this crate.
 ///
 /// The nested type is a specific struct representing the operation of the variant, e.g.
 /// the [`Xpr::Add`] variant will always wrap an [`ops::Add`] instance.
@@ -91,9 +92,8 @@ impl<U> Xpr<U> {
     }
 }
 
-/// A zero-sized type that implements the [`Fold`] trait. It folds each terminal in an expression
-/// tree to its wrapped type and performs the operations on its upwards traversal through the
-/// tree, thus evaluating the expression.
+/// internal type for evaluating expression. It folds each terminal in an expression tree to its wrapped 
+/// type and performs the operations on its upwards traversal through the tree, thus evaluating the expression.
 pub struct Evaluator<T>(PhantomData<T>);
 impl<T> Fold for Evaluator<T>
 where
@@ -102,6 +102,7 @@ where
     type TerminalType = T;
     type Output = Self::TerminalType;
     /// replaces Terminal values with their wrapped type
+    #[inline]
     fn fold_term(&mut self, Term(x): &Term<T>) -> T {
         *x
     }
@@ -132,6 +133,7 @@ pub mod ops {
 
     impl<T> Xpr<Term<T>> {
         /// creates a new  leaf expression.
+        #[inline]
         pub const fn new(t: T) -> Self {
             Self::Term(Term(t))
         }
@@ -147,6 +149,7 @@ pub mod ops {
     // implement addition for Xpr<T> expressions
     impl<L, R> std::ops::Add<Xpr<R>> for Xpr<L> {
         type Output = Xpr<Add<(Self, Xpr<R>)>>;
+        #[inline]
         fn add(self, other: Xpr<R>) -> Self::Output {
             Xpr::Add(Add((self, other)))
         }
@@ -173,6 +176,7 @@ pub trait Fold {
 
     fn fold_term(&mut self, _: &Term<Self::TerminalType>) -> Self::Output;
 
+    #[inline]
     fn fold_add<L, R>(&mut self, x: &Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
     where
         L: Foldable<Self>,
@@ -184,6 +188,7 @@ pub trait Fold {
         (x.0 .0).fold(self) + (x.0 .1).fold(self)
     }
 
+    #[inline]
     fn fold<T>(&mut self, x: &Xpr<T>) -> OutputFoldable<Self, T>
     where
         T: Foldable<Self>,
@@ -213,13 +218,15 @@ mod private {
 /// An internal ping-pong trait for `Fold`. This trait is part of the signature of the methods in [`Fold`],
 /// but not implementable from the outside.
 ///
-/// The methods in `Fold` will unwrap an explicit `Xpr<T>` containing a generic `Foldable` type. It will
-/// forward the nested generic element to the methods in `Foldable`, which will expand the generic
-/// type to the explicit type of the expression.
+/// The trait is needed internally to implement the [Fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
+/// for generic expressions:
+///
+/// The method [`Fold::fold`] will unwrap an explicit `Xpr<T>` wrapping a generic `Foldable` type `T`. It will
+/// forward the nested generic element to an explicit implementation of  `Foldable`.
 ///
 /// The `Foldable` implementations will then ping-pong the call back to the methods in `Fold` that handle
-/// concrete types. These methods can in turn recurse to the wrapped internal generic `Foldable` type
-/// by ping-ponging back to the `Foldable` trait methods, which will expand the ....
+/// concrete expression types, e.g. [`Fold::fold_add`]. These methods can in turn recurse to wrapped internal
+/// generic `Foldable` types by ping-ponging back to the explicit implementations of `Foldable`.
 ///
 /// The ping-pong recursion ends when we hit a leaf expression in `Fold::fold_term`, which will not
 /// trigger a recursion to a nested foldable type.
@@ -227,7 +234,10 @@ pub trait Foldable<F>: private::Sealed<F>
 where
     F: Fold + ?Sized,
 {
+
+    /// The output of the fold operation
     type Output;
+
     fn fold(&self, _: &mut F) -> Self::Output;
 }
 
@@ -268,7 +278,37 @@ where
     type Output = OutputFoldableAdd<F, L, R>;
 
     // ping-pongs to Fold::fold
+    #[inline]
     fn fold(&self, f: &mut F) -> Self::Output {
         f.fold_add(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct FortytwoifyI32;
+    impl Fold for FortytwoifyI32 {
+        type TerminalType = i32;
+        type Output = Xpr<Term<i32>>;
+        fn fold_term(&mut self, _: &Term<i32>) -> Self::Output {
+            Xpr::new(42)
+        }
+    }
+
+    // #[test]
+    // fn test_different_terminal_types()
+    // {
+    //     let x = Xpr::new(5) + Xpr::new(true);
+    //     let y = FortytwoifyI32.fold(&x);
+    // }
+
+    #[test]
+    fn test_eval() {
+        let x = Xpr::new(1) + Xpr::new(5);
+        assert_eq!(x.eval(), 6);
+        assert_eq!(x.eval(), x.fold(&mut Evaluator(PhantomData::<i32>)));
+        assert_eq!(x.eval(), Evaluator(PhantomData::<i32>).fold(&x));
     }
 }

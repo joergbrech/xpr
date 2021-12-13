@@ -33,7 +33,6 @@ where
 {
     // conversion from a vector expression to a VecN instance
     fn from(expr: Xpr<T>) -> Self {
-
         // initialize return vector
         let mut ret = VecN([Default::default(); N]);
 
@@ -46,7 +45,6 @@ where
 }
 
 pub fn main() {
-
     // Create a couple of vectors and convert to Xpr expressions
     let x1 = VecN([1., 2., 3., 4.]).into_xpr();
     let x2 = VecN([10., 20., 30., 40.]).into_xpr();

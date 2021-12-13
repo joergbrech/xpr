@@ -23,9 +23,9 @@ fn main() {
     // use the Evaluator to evaluate the expression
     let res = Evaluator.fold(&x);
 
-    // alternatively, we can pass a mutable reference to an 
+    // alternatively, we can pass a mutable reference to an
     // Evalutor instance to the expression.
-    assert_eq!(res, x.fold(&mut Evaluator{}));
+    assert_eq!(res, x.fold(&mut Evaluator {}));
 
     println!("x evaluates to {}.", res);
     assert_eq!(res, 42);
