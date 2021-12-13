@@ -138,7 +138,7 @@ pub mod ops {
 
     impl<T, F> Foldable<F> for Term<T>
     where
-        F: Fold<TerminalType = T>,
+        F: Fold<TerminalType = T>
     {
         type Output = <F as Fold>::Output;
 
@@ -286,29 +286,36 @@ pub mod fold {
 
     /// The output of `T` as `Foldable` by `F`, where `F` implements [`Fold`]
     pub type OutputFoldable<F, T> = <T as Foldable<F>>::Output;
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        struct FortytwoifyI32;
+        impl Fold for FortytwoifyI32 {
+            type TerminalType = i32;
+            type Output = Xpr<ops::Term<i32>>;
+            fn fold_term(&mut self, _: &ops::Term<i32>) -> Self::Output {
+                Xpr::new(42)
+            }
+        }
+
+        #[test]
+        fn test_fold_different_terminal_types()
+        {
+            // let x = Xpr::new(5) + Xpr::new(true);
+            // let y = FortytwoifyI32.fold(&x);
+            assert!(false);
+        }
+
+    }
 }
 
 pub use fold::{Fold, Foldable};
 
 #[cfg(test)]
 mod tests {
-    use super::{*, ops};
-
-    struct FortytwoifyI32;
-    impl Fold for FortytwoifyI32 {
-        type TerminalType = i32;
-        type Output = Xpr<ops::Term<i32>>;
-        fn fold_term(&mut self, _: &ops::Term<i32>) -> Self::Output {
-            Xpr::new(42)
-        }
-    }
-
-    // #[test]
-    // fn test_different_terminal_types()
-    // {
-    //     let x = Xpr::new(5) + Xpr::new(true);
-    //     let y = FortytwoifyI32.fold(&x);
-    // }
+    use super::*;
 
     #[test]
     fn test_eval() {
@@ -316,5 +323,23 @@ mod tests {
         assert_eq!(x.eval(), 6);
         assert_eq!(x.eval(), x.fold(&mut fold::Evaluator(PhantomData::<i32>)));
         assert_eq!(x.eval(), fold::Evaluator(PhantomData::<i32>).fold(&x));
+    }
+
+    struct Num(i32);
+    impl std::ops::Add<i32> for Num
+    {
+        type Output = i32;
+        fn add(self, other: i32) -> Self::Output 
+        {
+            self.0 + other
+        }
+    }
+
+    #[test]
+    fn test_eval_different_terminal_types()
+    {
+        // let x = Xpr::new(Num(2)) + Xpr::new(1);
+        // assert_eq!(x.eval(), 3);
+        assert!(false);
     }
 }
