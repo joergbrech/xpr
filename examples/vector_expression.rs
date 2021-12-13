@@ -1,4 +1,4 @@
-use xpr::{ops::*, *};
+use xpr::{ops::Term, Xpr, Fold, Foldable};
 
 // If we are writing a linear algebra library,
 // we will need a statically sized vector type
