@@ -22,6 +22,7 @@ impl<const N: usize> Fold for IthElement<{ N }> {
     type Output = f64;
 
     // extracts the i-th element of a vector terminal
+    #[inline]
     fn fold_term(&mut self, Term(v): &Term<VecN<{ N }>>) -> f64 {
         v.0[self.0]
     }
@@ -33,12 +34,13 @@ where
 {
     // conversion from a vector expression to a VecN instance
     fn from(expr: Xpr<T>) -> Self {
-        // initialize return vector
-        let mut ret = VecN([Default::default(); N]);
+
+        // scary unsafe uninitialized array
+        let mut ret : VecN<N> = unsafe { std::mem::MaybeUninit::uninit().assume_init() };
 
         // apply the operations in the vector expression element-wise
-        for i in 0..N {
-            ret.0[i] = IthElement(i).fold(&expr);
+        for (i, e) in ret.0.iter_mut().enumerate() {
+            *e = IthElement(i).fold(&expr);
         }
         ret
     }
