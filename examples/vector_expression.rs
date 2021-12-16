@@ -3,10 +3,18 @@ use xpr::{ops::Term, Fold, Foldable, Xpr};
 // If we are writing a linear algebra library,
 // we will need a statically sized vector type
 #[derive(Debug)]
-struct VecN<const N: usize>([f64; N]);
+struct VecN<const N: usize>(Box<[f64; N]>);
 
 impl<const N: usize> VecN<{ N }> {
+
+    #[inline]
+    fn new(array: [f64; N]) -> Self 
+    {
+        Self(Box::new(array))
+    }
+
     // conversion into a vector expression
+    #[inline]
     fn into_xpr(self) -> Xpr<Term<Self>> {
         Xpr::new(self)
     }
@@ -33,10 +41,10 @@ where
     T: Foldable<IthElement<{ N }>, Output = f64>,
 {
     // conversion from a vector expression to a VecN instance
+    #[inline]
     fn from(expr: Xpr<T>) -> Self {
-
         // scary unsafe uninitialized array
-        let mut ret : VecN<N> = unsafe { std::mem::MaybeUninit::uninit().assume_init() };
+        let mut ret = VecN::new(unsafe { std::mem::MaybeUninit::uninit().assume_init() });
 
         // apply the operations in the vector expression element-wise
         for (i, e) in ret.0.iter_mut().enumerate() {
@@ -48,12 +56,13 @@ where
 
 pub fn main() {
     // Create a couple of vectors and convert to Xpr expressions
-    let x1 = VecN([1., 2., 3., 4.]).into_xpr();
-    let x2 = VecN([10., 20., 30., 40.]).into_xpr();
-    let x3 = VecN([100., 200., 300., 400.]).into_xpr();
-    let x4 = VecN([1000., 2000., 3000., 4000.]).into_xpr();
+    let x1 = VecN::new([0.6; 5000]).into_xpr();
+    let x2 = VecN::new([1.0; 5000]).into_xpr();
+    let x3 = VecN::new([40.0; 5000]).into_xpr();
+    let x4 = VecN::new([100.0; 5000]).into_xpr();
+    let x5 = VecN::new([3000.0; 5000]).into_xpr();
 
     // A chained addition without any VecN temporaries!
-    let v = VecN::from(x1 + x2 + x3 + x4);
-    println!("v = {:?}", v);
+    let v = VecN::from(x1 + x2 + x3 + x4 + x5);
+    println!("v.0[0..5] = {:?}", &v.0[0..5]);
 }
