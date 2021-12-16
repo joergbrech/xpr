@@ -54,6 +54,10 @@ where
     }
 }
 
+/// The output of adding two foldable L, R where L and R are not assumed to be `Xpr`, 
+/// e.g. `OutputOfAdd<Term<u32>, Term<bool>>`.
+pub type OutputOfAdd<L,R> = Xpr<Add<(Xpr<L>, Xpr<R>)>>;
+
 /// The output of the addition of two `OutputFoldable<F,_>` types, where `F` implements [`Fold`]
 pub type OutputFoldableAdd<F, L, R> =
     <OutputFoldable<F, L> as std::ops::Add<OutputFoldable<F, R>>>::Output;
