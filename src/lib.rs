@@ -17,11 +17,11 @@
 //! // lazily evaluate the expression
 //! assert_eq!(x.eval(), 12);
 //! ```
-//! 
-//! In the above example, the type of `x` is 
-//! 
+//!
+//! In the above example, the type of `x` is
+//!
 //! `Xpr<Add<(Xpr<Term<{integer}>>, Xpr<Term<{integer}>>)>>`,
-//! 
+//!
 //! where all crate and nested module names have been omitted for better readability.
 //! It is a type representing the addition of two integers. To actually evaulate the expression, we call `x.eval()`.
 //!
@@ -59,9 +59,9 @@
 //! ```
 //!
 //! Refer to the documentation of [`Fold`] for more useful examples.
+
 use std::fmt;
 use std::marker::PhantomData;
-
 
 pub mod fold;
 pub mod ops;
@@ -151,11 +151,9 @@ mod tests {
     }
 
     struct Num(i32);
-    impl std::ops::Add<i32> for Num
-    {
+    impl std::ops::Add<i32> for Num {
         type Output = i32;
-        fn add(self, other: i32) -> Self::Output 
-        {
+        fn add(self, other: i32) -> Self::Output {
             self.0 + other
         }
     }

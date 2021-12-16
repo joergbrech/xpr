@@ -1,4 +1,7 @@
-use xpr::{ops::{Term, OutputOfAdd}, Fold, Xpr};
+use xpr::{
+    ops::{OutputOfAdd, Term},
+    Fold, Xpr,
+};
 
 struct Substitution;
 
@@ -12,7 +15,7 @@ impl Fold for Substitution {
 
     // replaces i32 terminals with an Add expression
     fn fold_term(&mut self, &Term(x): &Term<i32>) -> Self::Output {
-        Xpr::new(x-42) + Xpr::new(42)
+        Xpr::new(x - 42) + Xpr::new(42)
     }
 }
 

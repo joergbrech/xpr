@@ -1,7 +1,12 @@
 //! contains the [`Fold`] and [`Foldable`] traits, as well as implementors of [`Fold`] for
 //! convenience. Currently, [`Evaluator`] is the only implementor.
 
-use super::{*, ops::*};
+use std::marker::PhantomData;
+
+use super::{
+    ops::{Add, OutputFoldableAdd, Term},
+    Xpr,
+};
 
 /// internal type for evaluating expression. It folds each terminal in an expression tree to its wrapped
 /// type and performs the operations on its upwards traversal through the tree, thus evaluating the expression.
@@ -33,7 +38,7 @@ pub trait Fold {
     fn fold_term(&mut self, _: &Term<Self::TerminalType>) -> Self::Output;
 
     #[inline]
-    fn fold_add<L, R>(&mut self, x: &Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
+    fn fold_add<L, R>(&mut self, Add((l, r)): &Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
     where
         L: Foldable<Self>,
         R: Foldable<Self>,
@@ -41,7 +46,7 @@ pub trait Fold {
     {
         // ping-pongs to to the Foldable::fold impl for Xpr<T> for both arguments
         // and applies the operation +
-        (x.0 .0).fold(self) + (x.0 .1).fold(self)
+        l.fold(self) + r.fold(self)
     }
 
     #[inline]
@@ -72,9 +77,11 @@ mod private {
 }
 
 /// An internal ping-pong trait for `Fold`. This trait is part of the signature of the methods in [`Fold`],
-/// but not implementable from the outside.
+/// but not implementable from the outside. As a user of `xpr`, you don't have to worry about the implementation
+/// details of this trait.
 ///
-/// The trait is needed internally to implement the [Fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
+/// If you are curious anyway: The trait is needed internally to implement the
+/// [Fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
 /// for generic expressions:
 ///
 /// The method [`Fold::fold`] will unwrap an explicit `Xpr<T>` wrapping a generic `Foldable` type `T`. It will
@@ -93,6 +100,9 @@ where
     /// The output of the fold operation
     type Output;
 
+    /// ping-pong back to the appropriate method in `Fold` corresponding to `Self`. E.g.
+    /// the implementation of `Foldable` for [`ops::Add`] will call [`Fold::fold_add`] in its implementation
+    /// of `Foldable::fold`.
     fn fold(&self, _: &mut F) -> Self::Output;
 }
 
@@ -102,6 +112,7 @@ pub type OutputFoldable<F, T> = <T as Foldable<F>>::Output;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ops;
 
     struct FortytwoifyI32;
     impl Fold for FortytwoifyI32 {
@@ -119,5 +130,4 @@ mod tests {
     //     // let y = FortytwoifyI32.fold(&x);
     //     assert!(false);
     // }
-
 }

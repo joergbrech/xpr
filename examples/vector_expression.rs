@@ -6,10 +6,8 @@ use xpr::{ops::Term, Fold, Foldable, Xpr};
 struct VecN<const N: usize>(Box<[f64; N]>);
 
 impl<const N: usize> VecN<{ N }> {
-
     #[inline]
-    fn new(array: [f64; N]) -> Self 
-    {
+    fn new(array: [f64; N]) -> Self {
         Self(Box::new(array))
     }
 

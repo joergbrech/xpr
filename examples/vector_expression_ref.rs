@@ -8,10 +8,8 @@ use xpr::{ops::Term, Fold, Foldable, Xpr};
 struct VecN<const N: usize>(Box<[f64; N]>);
 
 impl<const N: usize> VecN<{ N }> {
-
     #[inline]
-    fn new(array: [f64; N]) -> Self 
-    {
+    fn new(array: [f64; N]) -> Self {
         Self(Box::new(array))
     }
 
@@ -24,10 +22,9 @@ impl<const N: usize> VecN<{ N }> {
 
 struct IthElement<'a, const N: usize>(usize, std::marker::PhantomData<&'a ()>);
 
-impl<'a, const N: usize> Fold for IthElement<'a, { N }> 
-{
+impl<'a, const N: usize> Fold for IthElement<'a, { N }> {
     // match all terminals wrapping a `VecN`
-    type TerminalType = &'a VecN<{N}>;
+    type TerminalType = &'a VecN<{ N }>;
 
     // replace by the value at the index in `IthElement`
     type Output = f64;
