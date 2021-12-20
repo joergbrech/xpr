@@ -5,9 +5,8 @@ use xpr::{
 
 struct Substitution;
 
-// make every i32 terminal wrap "42"
 impl Fold<Term<i32>> for Substitution {
-    // replaces the terminals by instances of `Self::Output`
+    
     type Output = OutputOfAdd<Term<i32>, Term<i32>>;
 
     // replaces i32 terminals with an Add expression

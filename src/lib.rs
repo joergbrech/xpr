@@ -4,7 +4,17 @@
 //! To use `xpr`, all you need to do is wrap all input variables to an expression in calls to `Xpr::new` and apply any supported
 //! operation to them. The result will be an object representing the operations you performed. Any possible chain of operations
 //! will be represented by their own specific type.
+//! 
+//! ## Limitations
+//! 
+//! Current limitiations of the library are that an expression can only hold terminals
+//! of the same type and that terminals are the only expressions that can be transformed using
+//! [`Fold`] *(see below)*. These restrictions can be lifted, once Rust supports 
+//! [specialization](https://github.com/rust-lang/rust/issues/31844), which is probably not any 
+//! time soon.
 //!
+//! ## Usage
+//! 
 //! Evaluation of the expression is be performed lazily by calling `Xpr::eval`:
 //!
 //! ```

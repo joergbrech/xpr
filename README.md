@@ -1,6 +1,6 @@
 # xpr
 
-***Disclaimer*: This is a pet project that was developed mainly for procrastination purposes.**
+***Disclaimer*: This is a toy project that was developed mainly for procrastination purposes.**
 
 xpr is a rust library that allows you to use expression templates with your custom type.
 It is inspired by [boost::yap](https://www.boost.org/doc/libs/1_74_0/doc/html/yap.html).
