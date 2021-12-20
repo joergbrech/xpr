@@ -60,7 +60,6 @@
 //!
 //! Refer to the documentation of [`Fold`] for more useful examples.
 
-use std::fmt;
 use std::marker::PhantomData;
 
 pub mod fold;
@@ -68,14 +67,12 @@ pub mod ops;
 
 pub use crate::fold::{Fold, Foldable};
 
-/// All supported operations. Any expression will be of this type. `Xpr` together with the
-/// [`Fold`] trait are at the heart of this crate.
+/// An expression. `Xpr` together with the [`Fold`] trait are at the heart of this crate.
 ///
-/// The nested type is a specific struct representing the operation of the variant, e.g.
-/// the [`Xpr::Add`] variant will always wrap an [`ops::Add`] instance.
+/// The nested type is a specific struct representing the operation, e.g. [`ops::Add`].
 ///
 /// `Xpr` instances should be instantiated via the [`Xpr::new`] method, which creates
-/// `Xpr::Term(ops::Term)` leaf expressions. The other variants are constructed from them by
+/// `Xpr<ops::Term>` leaf expressions. The other variants are constructed from them by
 /// applying operations to the leaf expressions.
 ///
 /// ```
@@ -85,18 +82,18 @@ pub use crate::fold::{Fold, Foldable};
 /// let z = x + y;
 /// //type of z is xpr::Xpr<xpr::ops::Add<(xpr::Xpr<xpr::ops::Term<{integer}>>, xpr::Xpr<xpr::ops::Term<{integer}>>)>>
 /// ```
-pub enum Xpr<T> {
-    /// `Xpr::Term(ops::Term)` represents a leaf expression in an expression tree
-    Term(T),
-    /// `Xpr::Add(ops::Add)` represents an addition of two expressions
-    Add(T),
-}
+#[derive(Debug)]
+pub struct Xpr<T>(T);
+
+//In a perfect world, this would be  an enum. But this only makes sense as soon as
+// enum variants are promoted as first class types, so that we have per variant impls and irefutabl
+// patterns in fn args, see also https://github.com/rust-lang/rfcs/pull/2593
 
 impl<T> Xpr<ops::Term<T>> {
     /// creates a new  leaf expression.
     #[inline]
     pub const fn new(t: T) -> Self {
-        Self::Term(ops::Term(t))
+        Xpr(ops::Term(t))
     }
 }
 
@@ -123,18 +120,6 @@ impl<U> Xpr<U> {
         U: Foldable<fold::Evaluator<T>>,
     {
         fold::Evaluator(PhantomData::<T>).fold(self)
-    }
-}
-
-impl<T> fmt::Debug for Xpr<T>
-where
-    T: fmt::Debug,
-{
-    // delegates formatter to wrapped type
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Xpr::Term(x) | Xpr::Add(x) => x.fmt(f),
-        }
     }
 }
 

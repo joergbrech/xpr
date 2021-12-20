@@ -3,7 +3,7 @@
 
 use super::{
     fold::{Fold, Foldable, OutputFoldable},
-    Xpr,
+    Xpr
 };
 
 /// An `Xpr::Term(Term<T>)` instance is a leaf in an expression tree, e.g. a single value of type `T` with no
@@ -34,7 +34,7 @@ impl<L, R> std::ops::Add<Xpr<R>> for Xpr<L> {
     type Output = Xpr<Add<(Self, Xpr<R>)>>;
     #[inline]
     fn add(self, other: Xpr<R>) -> Self::Output {
-        Xpr::Add(Add((self, other)))
+        Xpr(Add((self, other)))
     }
 }
 

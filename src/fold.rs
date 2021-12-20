@@ -50,14 +50,12 @@ pub trait Fold {
     }
 
     #[inline]
-    fn fold<T>(&mut self, x: &Xpr<T>) -> OutputFoldable<Self, T>
+    fn fold<T>(&mut self, Xpr(t): &Xpr<T>) -> OutputFoldable<Self, T>
     where
         T: Foldable<Self>,
     {
         // ping-pong to the Foldable::fold impl for Term<T> and Add<L,R>
-        match x {
-            Xpr::Term(y) | Xpr::Add(y) => y.fold(self),
-        }
+        t.fold(self)
     }
 }
 
@@ -101,7 +99,7 @@ where
     type Output;
 
     /// ping-pong back to the appropriate method in `Fold` corresponding to `Self`. E.g.
-    /// the implementation of `Foldable` for [`ops::Add`] will call [`Fold::fold_add`] in its implementation
+    /// the implementation of `Foldable` for [`crate::ops::Add`] will call [`Fold::fold_add`] in its implementation
     /// of `Foldable::fold`.
     fn fold(&self, _: &mut F) -> Self::Output;
 }
