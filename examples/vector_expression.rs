@@ -1,4 +1,5 @@
-use xpr::{ops::Term, Fold, Xpr, Expression};
+use xpr::{ops::Term, Expression, Fold, Xpr};
+use std::ops::{Index, Range};
 
 // If we are writing a linear algebra library,
 // we will need a statically sized vector type
@@ -11,8 +12,29 @@ impl<const N: usize> VecN<{ N }> {
         Self(Box::new(array))
     }
 }
+
+impl<const N: usize> Index<Range<usize>> for VecN<N> 
+{
+    type Output = [f64];
+    fn index(&self, index: Range<usize>) -> &Self::Output
+    {
+        &self.0[index]
+    }
+}
+
+impl<const N: usize> Index<usize> for VecN<N> 
+{
+    type Output = f64;
+    fn index(&self, index: usize) -> &Self::Output
+    {
+        &self.0[index]
+    }
+}
+
 // a convenience trait for cnverting VecN instances to xpr terminals
 impl<const N: usize> Expression for VecN<N> {}
+
+// now lets implement conversion from an Xpr<T> expression to VecN
 
 struct IthElement<const N: usize>(usize);
 
@@ -24,7 +46,7 @@ impl<const N: usize> Fold<Term<VecN<{ N }>>> for IthElement<{ N }> {
     // extracts the i-th element of a vector terminal
     #[inline]
     fn fold(&mut self, Term(v): &Term<VecN<{ N }>>) -> f64 {
-        v.0[self.0]
+        v[self.0]
     }
 }
 
@@ -56,5 +78,5 @@ pub fn main() {
 
     // A chained addition without any VecN temporaries!
     let v = VecN::from(x1 + x2 + x3 + x4 + x5);
-    println!("v.0[0..5] = {:?}", &v.0[0..5]);
+    println!("v[0..5] = {:?}", &v[0..5]);
 }
