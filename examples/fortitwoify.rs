@@ -4,7 +4,6 @@ struct Fortytwoify;
 
 // make every i32 terminal wrap "42"
 impl Fold<Term<i32>> for Fortytwoify {
-
     // replaces the terminals by instances of `Self::Output`
     type Output = Xpr<Term<i32>>;
 

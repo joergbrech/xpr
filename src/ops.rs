@@ -3,7 +3,7 @@
 
 use super::{
     fold::{Fold, Foldable, OutputFoldable},
-    Xpr
+    Xpr,
 };
 
 /// An `Xpr<Term<T>>` instance is a leaf in an expression tree, e.g. a single value of type `T` with no
@@ -26,7 +26,7 @@ where
 
 /// An `Xpr<Add<L,R>>` instance is an expression representing an addition.
 #[derive(Debug)]
-pub struct Add<L,R>(pub L, pub R);
+pub struct Add<L, R>(pub L, pub R);
 
 // implement addition for Xpr<T> expressions
 impl<L, R> std::ops::Add<Xpr<R>> for Xpr<L> {
@@ -53,17 +53,17 @@ where
     }
 }
 
-impl<L,R,U> Fold<Add<L,R>> for U 
-where 
+impl<L, R, U> Fold<Add<L, R>> for U
+where
     U: Fold<L> + Fold<R>,
     L: Foldable<Self>,
     R: Foldable<Self>,
-    OutputFoldable<Self, L>: std::ops::Add<OutputFoldable<Self, R>>
+    OutputFoldable<Self, L>: std::ops::Add<OutputFoldable<Self, R>>,
 {
     type Output = OutputFoldableAdd<Self, L, R>;
-    
-    fn fold(&mut self, Add(l,r): &Add<L,R>) -> Self::Output
-    {
+
+    #[inline]
+    fn fold(&mut self, Add(l, r): &Add<L, R>) -> Self::Output {
         // ping-pongs to to the Foldable::fold impl for Xpr<T> for both arguments
         // and applies the operation +
         l.fold(self) + r.fold(self)

@@ -1,5 +1,3 @@
-#![feature(generic_associated_types)]
-
 use xpr::{ops::Term, Fold, Xpr};
 
 // If we are writing a linear algebra library,
@@ -23,7 +21,6 @@ impl<const N: usize> VecN<{ N }> {
 struct IthElement<'a, const N: usize>(usize, std::marker::PhantomData<&'a ()>);
 
 impl<'a, const N: usize> Fold<Term<&'a VecN<{ N }>>> for IthElement<'a, { N }> {
-
     // replace by the value at the index in `IthElement`
     type Output = f64;
 
@@ -36,7 +33,7 @@ impl<'a, const N: usize> Fold<Term<&'a VecN<{ N }>>> for IthElement<'a, { N }> {
 
 impl<'a, T, const N: usize> From<Xpr<T>> for VecN<{ N }>
 where
-    IthElement<'a, N>: Fold<Xpr<T>, Output=f64>
+    IthElement<'a, N>: Fold<Xpr<T>, Output = f64>,
 {
     // conversion from a vector expression to a VecN instance
     #[inline]

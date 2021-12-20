@@ -1,33 +1,10 @@
-//! contains the [`Fold`] and [`Foldable`] traits, as well as implementors of [`Fold`] for
-//! convenience. Currently, [`Evaluator`] is the only implementor.
+//! contains the [`Fold`] and [`Foldable`] traits
 
-use std::marker::PhantomData;
-
-use super::{
-    ops::{Term}
-};
-
-/// internal type for evaluating expression. It folds each terminal in an expression tree to its wrapped
-/// type and performs the operations on its upwards traversal through the tree, thus evaluating the expression.
-pub struct Evaluator<T>(pub PhantomData<T>);
-
-impl<T> Fold<Term<T>> for Evaluator<T>
-where
-    T: Copy,
-{
-    type Output = T;
-    /// replaces Terminal values with their wrapped type
-    #[inline]
-    fn fold(&mut self, Term(x): &Term<T>) -> T {
-        *x
-    }
-}
-
-/// A trait for expression manipulation. `Fold` together with [`Xpr`] are at the heart of this crate.
+/// A trait for expression manipulation. `Fold` together with [`crate::Xpr`] are at the heart of this crate.
 pub trait Fold<T: ?Sized> {
     // implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
 
-    /// The output of [`Fold::fold_term`], `Self` will replace all `Term<Self::TerminalType>` by values of this type.
+    /// The output of [`Fold::fold`], `Self` will replace all instances of `T` in an expression by values of this type.
     type Output;
 
     fn fold(&mut self, _: &T) -> Self::Output;
@@ -60,7 +37,7 @@ mod private {
 /// forward the nested generic element to an explicit implementation of  `Foldable`.
 ///
 /// The `Foldable` implementations will then ping-pong the call back to the methods in `Fold` that handle
-/// concrete expression types, e.g. [`Fold::fold_add`]. These methods can in turn recurse to wrapped internal
+/// concrete expression types, e.g. [`crate::ops::Add`]. These methods can in turn recurse to wrapped internal
 /// generic `Foldable` types by ping-ponging back to the explicit implementations of `Foldable`.
 ///
 /// The ping-pong recursion ends when we hit a leaf expression in `Fold::fold_term`, which will not
@@ -72,9 +49,7 @@ where
     /// The output of the fold operation
     type Output;
 
-    /// ping-pong back to the appropriate method in `Fold` corresponding to `Self`. E.g.
-    /// the implementation of `Foldable` for [`crate::ops::Add`] will call [`Fold::fold_add`] in its implementation
-    /// of `Foldable::fold`.
+    /// ping-pong back to the appropriate method in `Fold` corresponding to `Self`.
     fn fold(&self, _: &mut F) -> Self::Output;
 }
 

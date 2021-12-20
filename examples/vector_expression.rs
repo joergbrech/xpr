@@ -22,7 +22,6 @@ struct IthElement<const N: usize>(usize);
 
 // match all terminals wrapping a `VecN`
 impl<const N: usize> Fold<Term<VecN<{ N }>>> for IthElement<{ N }> {
-
     // replace by the value at the index in `IthElement`
     type Output = f64;
 
@@ -35,7 +34,7 @@ impl<const N: usize> Fold<Term<VecN<{ N }>>> for IthElement<{ N }> {
 
 impl<T, const N: usize> From<Xpr<T>> for VecN<{ N }>
 where
-    IthElement<N>: Fold<Xpr<T>, Output=f64>
+    IthElement<N>: Fold<Xpr<T>, Output = f64>,
 {
     // conversion from a vector expression to a VecN instance
     #[inline]

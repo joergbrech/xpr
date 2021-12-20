@@ -62,7 +62,10 @@ use std::marker::PhantomData;
 pub mod fold;
 pub mod ops;
 
-pub use crate::fold::{Fold, Foldable, OutputFoldable};
+pub use crate::fold::{Fold, Foldable};
+
+use crate::ops::Term;
+use crate::fold::OutputFoldable;
 
 /// An expression. `Xpr` together with the [`Fold`] trait are at the heart of this crate.
 ///
@@ -76,8 +79,9 @@ pub use crate::fold::{Fold, Foldable, OutputFoldable};
 /// use xpr::*;
 /// let x = Xpr::new(5);
 /// let y = Xpr::new(1);
-/// let z = x + y;
-/// //type of z is xpr::Xpr<xpr::ops::Add<(xpr::Xpr<xpr::ops::Term<{integer}>>, xpr::Xpr<xpr::ops::Term<{integer}>>)>>
+/// let z : i32 = x + y;
+/// assert_eq!(std::any::TypeId<>())
+/// //type of z is xpr::Xpr<xpr::ops::Add<xpr::Xpr<xpr::ops::Term<{integer}>>, xpr::Xpr<xpr::ops::Term<{integer}>>>>
 /// ```
 #[derive(Debug)]
 pub struct Xpr<T>(T);
@@ -86,11 +90,11 @@ pub struct Xpr<T>(T);
 // enum variants are promoted as first class types, so that we have per variant impls and irefutabl
 // patterns in fn args, see also https://github.com/rust-lang/rfcs/pull/2593
 
-impl<T> Xpr<ops::Term<T>> {
+impl<T> Xpr<Term<T>> {
     /// creates a new  leaf expression.
     #[inline]
     pub const fn new(t: T) -> Self {
-        Xpr(ops::Term(t))
+        Self(Term(t))
     }
 }
 
@@ -108,32 +112,47 @@ where
     }
 }
 
-impl<T,U> Fold<Xpr<T>> for U
-where 
+impl<T, U> Fold<Xpr<T>> for U
+where
     U: Fold<T>,
-    T: Foldable<Self>
+    T: Foldable<Self>,
 {
     type Output = OutputFoldable<Self, T>;
-    
+
     #[inline]
-    fn fold(&mut self, Xpr(t): &Xpr<T>) -> <T as Foldable<Self>>::Output
-    {
+    fn fold(&mut self, Xpr(t): &Xpr<T>) -> <T as Foldable<Self>>::Output {
         // ping-pong to the Foldable::fold impl for Term<T> and Add<L,R>
         t.fold(self)
     }
 }
 
-impl<U> Xpr<U> 
+/// internal type for evaluating expression. It folds each terminal in an expression tree to its wrapped
+/// type and performs the operations on its upwards traversal through the tree, thus evaluating the expression.
+pub struct Evaluator<T>(pub PhantomData<T>);
+
+impl<T> Fold<Term<T>> for Evaluator<T>
+where
+    T: Copy,
 {
+    type Output = T;
+    /// replaces Terminal values with their wrapped type
+    #[inline]
+    fn fold(&mut self, Term(x): &Term<T>) -> T {
+        *x
+    }
+}
+
+impl<U> Xpr<U> {
     /// evaluates the expression by unwrapping all terminals and applying the operations
-    /// in the expression. It is synactic sugar for folding the expression with the [`fold::Evaluator`].
-    pub fn eval<T>(&self) -> fold::OutputFoldable<fold::Evaluator<T>, Self>
+    /// in the expression. It is synactic sugar for folding the expression with [`Evaluator`].
+    #[inline]
+    pub fn eval<T>(&self) -> fold::OutputFoldable<Evaluator<T>, Self>
     where
         T: Copy,
-        U: Foldable<fold::Evaluator<T>>,
-        fold::Evaluator<T>: fold::Fold<U> + fold::Fold<Self>
+        U: Foldable<Evaluator<T>>,
+        Evaluator<T>: fold::Fold<U> + fold::Fold<Self>,
     {
-        fold::Evaluator(PhantomData::<T>).fold(self)
+        Evaluator(PhantomData::<T>).fold(self)
     }
 }
 
@@ -145,8 +164,8 @@ mod tests {
     fn test_eval() {
         let x = Xpr::new(1) + Xpr::new(5);
         assert_eq!(x.eval(), 6);
-        assert_eq!(x.eval(), x.fold(&mut fold::Evaluator(PhantomData::<i32>)));
-        assert_eq!(x.eval(), fold::Evaluator(PhantomData::<i32>).fold(&x));
+        assert_eq!(x.eval(), x.fold(&mut Evaluator(PhantomData::<i32>)));
+        assert_eq!(x.eval(), Evaluator(PhantomData::<i32>).fold(&x));
     }
 
     struct Num(i32);
