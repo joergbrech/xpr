@@ -6,7 +6,7 @@ use super::{
     Xpr
 };
 
-/// An `Xpr::Term(Term<T>)` instance is a leaf in an expression tree, e.g. a single value of type `T` with no
+/// An `Xpr<Term<T>>` instance is a leaf in an expression tree, e.g. a single value of type `T` with no
 /// operations applied to it.
 #[derive(Debug)]
 pub struct Term<T>(pub T);
@@ -24,21 +24,20 @@ where
     }
 }
 
-/// An `Xpr::Add(Add<T>)` instance is an expression representing an addition. The generic type `T` is a
-/// two-element tuple containg the left and right operands.
+/// An `Xpr<Add<L,R>>` instance is an expression representing an addition.
 #[derive(Debug)]
-pub struct Add<T>(pub T);
+pub struct Add<L,R>(pub L, pub R);
 
 // implement addition for Xpr<T> expressions
 impl<L, R> std::ops::Add<Xpr<R>> for Xpr<L> {
-    type Output = Xpr<Add<(Self, Xpr<R>)>>;
+    type Output = Xpr<Add<Self, Xpr<R>>>;
     #[inline]
     fn add(self, other: Xpr<R>) -> Self::Output {
-        Xpr(Add((self, other)))
+        Xpr(Add(self, other))
     }
 }
 
-impl<L, R, F> Foldable<F> for Add<(L, R)>
+impl<L, R, F> Foldable<F> for Add<L, R>
 where
     L: Foldable<F>,
     R: Foldable<F>,
@@ -58,7 +57,7 @@ where
 /// e.g. `OutputOfAdd<Term<u32>, Term<bool>>`.
 ///
 /// This is a convenience type to not have to write out the `Xpr` enum explicitly.
-pub type OutputOfAdd<L, R> = Xpr<Add<(Xpr<L>, Xpr<R>)>>;
+pub type OutputOfAdd<L, R> = Xpr<Add<Xpr<L>, Xpr<R>>>;
 
 /// The output of the addition of two [`OutputFoldable<F,_>`] types, where `F` implements [`Fold`]
 pub type OutputFoldableAdd<F, L, R> =

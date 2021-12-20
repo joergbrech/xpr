@@ -38,7 +38,7 @@ pub trait Fold {
     fn fold_term(&mut self, _: &Term<Self::TerminalType>) -> Self::Output;
 
     #[inline]
-    fn fold_add<L, R>(&mut self, Add((l, r)): &Add<(L, R)>) -> OutputFoldableAdd<Self, L, R>
+    fn fold_add<L, R>(&mut self, Add(l, r): &Add<L, R>) -> OutputFoldableAdd<Self, L, R>
     where
         L: Foldable<Self>,
         R: Foldable<Self>,
