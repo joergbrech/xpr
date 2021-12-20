@@ -1,4 +1,4 @@
-use xpr::{ops::Term, Fold, Xpr};
+use xpr::{ops::Term, Fold, Xpr, Expression};
 
 // If we are writing a linear algebra library,
 // we will need a statically sized vector type
@@ -10,13 +10,9 @@ impl<const N: usize> VecN<{ N }> {
     fn new(array: [f64; N]) -> Self {
         Self(Box::new(array))
     }
-
-    // conversion into a vector expression
-    #[inline]
-    fn into_xpr(self) -> Xpr<Term<Self>> {
-        Xpr::new(self)
-    }
 }
+// a convenience trait for cnverting VecN instances to xpr terminals
+impl<const N: usize> Expression for VecN<N> {}
 
 struct IthElement<const N: usize>(usize);
 

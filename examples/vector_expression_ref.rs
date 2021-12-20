@@ -1,4 +1,4 @@
-use xpr::{ops::Term, Fold, Xpr};
+use xpr::{ops::Term, Fold, Xpr, Expression};
 
 // If we are writing a linear algebra library,
 // we will need a statically sized vector type
@@ -10,13 +10,9 @@ impl<const N: usize> VecN<{ N }> {
     fn new(array: [f64; N]) -> Self {
         Self(Box::new(array))
     }
-
-    // wrap reference to self in terminal expression
-    #[inline]
-    fn as_xpr(&self) -> Xpr<Term<&Self>> {
-        Xpr::new(&self)
-    }
 }
+// a convenience trait for cnverting VecN instances to xpr terminals
+impl<const N: usize> Expression for VecN<N> {}
 
 struct IthElement<'a, const N: usize>(usize, std::marker::PhantomData<&'a ()>);
 
@@ -58,6 +54,6 @@ pub fn main() {
     let x5 = VecN::new([3000.0; 5000]);
 
     // A chained addition without any VecN temporaries!
-    let v = VecN::from(x1.as_xpr() + x2.as_xpr() + x3.as_xpr() + x4.as_xpr() + x5.as_xpr());
+    let v = VecN::from(x1.as_xpr() + &x2 + &x3 + &x4 + &x5);
     println!("v.0[0..5] = {:?}", &v.0[0..5]);
 }

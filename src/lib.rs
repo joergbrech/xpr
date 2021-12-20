@@ -79,8 +79,7 @@ use crate::fold::OutputFoldable;
 /// use xpr::*;
 /// let x = Xpr::new(5);
 /// let y = Xpr::new(1);
-/// let z : i32 = x + y;
-/// assert_eq!(std::any::TypeId<>())
+/// let z = x + y;
 /// //type of z is xpr::Xpr<xpr::ops::Add<xpr::Xpr<xpr::ops::Term<{integer}>>, xpr::Xpr<xpr::ops::Term<{integer}>>>>
 /// ```
 #[derive(Debug)]
@@ -153,6 +152,28 @@ impl<U> Xpr<U> {
         Evaluator<T>: fold::Fold<U> + fold::Fold<Self>,
     {
         Evaluator(PhantomData::<T>).fold(self)
+    }
+}
+
+/// A trait for converting an instance into xpr terminals
+pub trait Expression 
+{
+    /// Wrap a reference of self in an Xpr terminal
+    #[inline]
+    fn as_xpr(&self) -> Xpr<Term<&Self>> 
+    where 
+        Self: Sized
+    {
+        Xpr::new(&self)
+    }
+
+    /// Consume self and return as Xpr terminal
+    #[inline]
+    fn into_xpr(self) -> Xpr<Term<Self>> 
+    where 
+        Self: Sized
+    {
+        Xpr::new(self)
     }
 }
 

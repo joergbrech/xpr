@@ -4,6 +4,7 @@
 use super::{
     fold::{Fold, Foldable, OutputFoldable},
     Xpr,
+    Expression
 };
 
 /// An `Xpr<Term<T>>` instance is a leaf in an expression tree, e.g. a single value of type `T` with no
@@ -34,6 +35,17 @@ impl<L, R> std::ops::Add<Xpr<R>> for Xpr<L> {
     #[inline]
     fn add(self, other: Xpr<R>) -> Self::Output {
         Xpr(Add(self, other))
+    }
+}
+
+// implement addition for Xpr<T> + Expression
+impl<'a, L, R> std::ops::Add<&'a R> for Xpr<L> 
+where R: Expression
+{
+    type Output = Xpr<Add<Self, Xpr<Term<&'a R>>>>;
+    #[inline]
+    fn add(self, other: &'a R) -> Self::Output {
+        Xpr(Add(self, other.as_xpr()))
     }
 }
 
