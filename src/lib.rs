@@ -255,12 +255,10 @@ impl<U> Xpr<U> {
 /// This temporary vector is than added to `x1` yielding yet another temporary vector, which is moved into `x`. The
 /// allocation of these two temporary vectors can be avoided using expression templates.
 ///
-/// Let's pretend we want to write our own linear algebra library and let's start just with a statically sized
-/// vector type.
+/// Let's pretend we want to write our own linear algebra library.
 ///
 /// ```
 /// use xpr::{ops::Term, Expression, Fold, Xpr};
-/// use std::ops::{Index, Range};
 ///
 /// // This is our statically sized vector type
 /// #[derive(Debug)]
@@ -277,29 +275,24 @@ impl<U> Xpr<U> {
 /// // this lets us call as_xpr and into_xpr on Vec instances.
 /// impl<const N: usize> Expression for Vec<N> {}
 ///
-/// // now lets actually implement conversion from an Xpr<T> expression to Vec
+/// struct IthElement<const N: usize>(usize);
 ///
-/// // We need the folder IthElement to depend on the lifetime 'a, so we
-/// // wrap an std::marker::PhantomData<&'a ()>.
-/// struct IthElement<'a, const N: usize>(usize, std::marker::PhantomData<&'a ()>);
-///
-/// // IthElement will match all Terminals wrapping a reference to Vec and
-/// // return it's i-th element.
-/// impl<'a, const N: usize> Fold<Term<&'a Vec<{ N }>>> for IthElement<'a, { N }> {
+/// // IthElement will match all Terminals wrapping a Vec and return it's i-th element.
+/// impl<const N: usize> Fold<Term<Vec<{ N }>>> for IthElement<{ N }> {
 ///
 ///     type Output = f64;
 ///
 ///     // extracts the i-th element of a vector terminal
 ///     #[inline]
-///     fn fold(&mut self, Term(v): &Term<&'a Vec<{ N }>>) -> f64 {
+///     fn fold(&mut self, Term(v): &Term<Vec<{ N }>>) -> f64 {
 ///         v.0[self.0]
 ///     }
 /// }
 ///
 /// // convert any Xpr<T> to Vec
-/// impl<'a, T, const N: usize> From<Xpr<T>> for Vec<{ N }>
+/// impl<T, const N: usize> From<Xpr<T>> for Vec<{ N }>
 /// where
-///     IthElement<'a, N>: Fold<Xpr<T>, Output = f64>,
+///     IthElement<N>: Fold<Xpr<T>, Output = f64>,
 /// {
 ///     // conversion from a vector expression to a Vec instance
 ///     #[inline]
@@ -309,7 +302,7 @@ impl<U> Xpr<U> {
 ///
 ///         // apply the operations in the vector expression element-wise
 ///         for (i, e) in ret.0.iter_mut().enumerate() {
-///             *e = IthElement(i, std::marker::PhantomData).fold(&expr);
+///             *e = IthElement(i).fold(&expr);
 ///         }
 ///         ret
 ///     }
@@ -317,18 +310,25 @@ impl<U> Xpr<U> {
 ///
 /// // Now let's take it for a spin!
 ///
-/// // Create a couple of vectors
-/// let x1 = Vec::new([0.6; 5000]);
-/// let x2 = Vec::new([1.0; 5000]);
-/// let x3 = Vec::new([40.0; 5000]);
-/// let x4 = Vec::new([100.0; 5000]);
-/// let x5 = Vec::new([3000.0; 5000]);
+/// // Create a couple of vector expressions
+/// let x1 = Vec::new([0.6; 5000]).into_xpr();
+/// let x2 = Vec::new([1.0; 5000]).into_xpr();
+/// let x3 = Vec::new([40.0; 5000]).into_xpr();
+/// let x4 = Vec::new([100.0; 5000]).into_xpr();
+/// let x5 = Vec::new([3000.0; 5000]).into_xpr();
 ///
 /// // A chained addition without any Vec temporaries!
-/// let v = Vec::from(x1.as_xpr() + &x2 + &x3 + &x4 + &x5);
+/// let v = Vec::from(x1 + x2 + x3 + x4 + x5);
 /// assert_eq!(v.0[0], 3141.6);
 /// ```
 ///
+/// Granted, the example is a bit of an oversimplification because the addition consumes
+/// its summands and it would have been possible to write a fairly performant vector addition
+/// with the same functionality based on move semantics. But a sum that consumes its summands 
+/// is something you usually don't want. It takes only a little bit of tweaking to get the 
+/// example to work on terminals that wrap references to vectors that will not be consumed.
+/// The tweaked example can be found in the examples subdirectory of the repository.
+/// 
 pub trait Fold<T: ?Sized> {
     // implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
 
