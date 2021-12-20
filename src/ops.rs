@@ -2,8 +2,8 @@
 //! to implement the [`Fold`] trait.
 
 use super::{
-    fold::{Fold, Foldable, OutputFoldable},
-    Expression, Xpr,
+    foldable::{Foldable, OutputFoldable},
+    Expression, Fold, Xpr,
 };
 
 /// An `Xpr<Term<T>>` instance is a leaf in an expression tree, e.g. a single value of type `T` with no
@@ -89,5 +89,5 @@ where
 pub type OutputOfAdd<L, R> = Xpr<Add<Xpr<L>, Xpr<R>>>;
 
 /// The output of the addition of two [`OutputFoldable<F,_>`] types, where `F` implements [`Fold`]
-pub type OutputFoldableAdd<F, L, R> =
+type OutputFoldableAdd<F, L, R> =
     <OutputFoldable<F, L> as std::ops::Add<OutputFoldable<F, R>>>::Output;

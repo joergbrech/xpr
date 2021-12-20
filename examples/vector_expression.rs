@@ -14,7 +14,6 @@ impl<const N: usize> Vec<{ N }> {
 }
 
 impl<const N: usize> Index<Range<usize>> for Vec<N> {
-    
     type Output = [f64];
 
     #[inline]
@@ -24,7 +23,6 @@ impl<const N: usize> Index<Range<usize>> for Vec<N> {
 }
 
 impl<const N: usize> Index<usize> for Vec<N> {
-    
     type Output = f64;
 
     #[inline]

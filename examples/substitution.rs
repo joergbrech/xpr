@@ -6,7 +6,6 @@ use xpr::{
 struct Substitution;
 
 impl Fold<Term<i32>> for Substitution {
-    
     type Output = OutputOfAdd<Term<i32>, Term<i32>>;
 
     // replaces i32 terminals with an Add expression
