@@ -64,8 +64,8 @@ pub mod ops;
 
 pub use crate::fold::{Fold, Foldable};
 
-use crate::ops::Term;
 use crate::fold::OutputFoldable;
+use crate::ops::Term;
 
 /// An expression. `Xpr` together with the [`Fold`] trait are at the heart of this crate.
 ///
@@ -156,22 +156,21 @@ impl<U> Xpr<U> {
 }
 
 /// A trait for converting an instance into xpr terminals
-pub trait Expression 
-{
+pub trait Expression {
     /// Wrap a reference of self in an Xpr terminal
     #[inline]
-    fn as_xpr(&self) -> Xpr<Term<&Self>> 
-    where 
-        Self: Sized
+    fn as_xpr(&self) -> Xpr<Term<&Self>>
+    where
+        Self: Sized,
     {
-        Xpr::new(&self)
+        Xpr::new(self)
     }
 
     /// Consume self and return as Xpr terminal
     #[inline]
-    fn into_xpr(self) -> Xpr<Term<Self>> 
-    where 
-        Self: Sized
+    fn into_xpr(self) -> Xpr<Term<Self>>
+    where
+        Self: Sized,
     {
         Xpr::new(self)
     }
