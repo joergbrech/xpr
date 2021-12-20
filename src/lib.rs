@@ -34,16 +34,13 @@
 //!
 //! struct Fortytwoify;
 //!
-//! impl Fold for Fortytwoify {
-//!
-//!     // We will only manipulate terminal expressions wrapping i32 values
-//!     type TerminalType = i32;
+//! impl Fold<Term<i32>> for Fortytwoify {
 //!
 //!     // We will replace these terminals by terminal expressions wrapping i32 values
 //!     type Output = Xpr<Term<i32>>;
 //!
 //!     // replaces terminals with terminals wrapping the value 42
-//!     fn fold_term(&mut self, _: &Term<i32>) -> Self::Output {
+//!     fn fold(&mut self, _: &Term<i32>) -> Self::Output {
 //!         Xpr::new(42)
 //!     }
 //! }
@@ -65,7 +62,7 @@ use std::marker::PhantomData;
 pub mod fold;
 pub mod ops;
 
-pub use crate::fold::{Fold, Foldable};
+pub use crate::fold::{Fold, Foldable, OutputFoldable};
 
 /// An expression. `Xpr` together with the [`Fold`] trait are at the heart of this crate.
 ///
@@ -100,9 +97,9 @@ impl<T> Xpr<ops::Term<T>> {
 impl<T, F> Foldable<F> for Xpr<T>
 where
     T: Foldable<F>,
-    F: Fold,
+    F: Fold<Self> + Fold<T>,
 {
-    type Output = fold::OutputFoldable<F, T>;
+    type Output = <F as Fold<Self>>::Output;
 
     // ping-pongs to Fold::fold
     #[inline]
@@ -111,13 +108,30 @@ where
     }
 }
 
-impl<U> Xpr<U> {
+impl<T,U> Fold<Xpr<T>> for U
+where 
+    U: Fold<T>,
+    T: Foldable<Self>
+{
+    type Output = OutputFoldable<Self, T>;
+    
+    #[inline]
+    fn fold(&mut self, Xpr(t): &Xpr<T>) -> <T as Foldable<Self>>::Output
+    {
+        // ping-pong to the Foldable::fold impl for Term<T> and Add<L,R>
+        t.fold(self)
+    }
+}
+
+impl<U> Xpr<U> 
+{
     /// evaluates the expression by unwrapping all terminals and applying the operations
     /// in the expression. It is synactic sugar for folding the expression with the [`fold::Evaluator`].
     pub fn eval<T>(&self) -> fold::OutputFoldable<fold::Evaluator<T>, Self>
     where
         T: Copy,
         U: Foldable<fold::Evaluator<T>>,
+        fold::Evaluator<T>: fold::Fold<U> + fold::Fold<Self>
     {
         fold::Evaluator(PhantomData::<T>).fold(self)
     }

@@ -3,15 +3,13 @@ use xpr::{ops::Term, Fold, Xpr};
 struct Fortytwoify;
 
 // make every i32 terminal wrap "42"
-impl Fold for Fortytwoify {
-    // matches all terminals wrapping `Self::TerminalType`
-    type TerminalType = i32;
+impl Fold<Term<i32>> for Fortytwoify {
 
     // replaces the terminals by instances of `Self::Output`
     type Output = Xpr<Term<i32>>;
 
     // replaces i32 terminals with i32 terminals wrapping the value "42"
-    fn fold_term(&mut self, _: &Term<i32>) -> Self::Output {
+    fn fold(&mut self, _: &Term<i32>) -> Self::Output {
         Xpr::new(42)
     }
 }

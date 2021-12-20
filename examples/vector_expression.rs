@@ -1,4 +1,4 @@
-use xpr::{ops::Term, Fold, Foldable, Xpr};
+use xpr::{ops::Term, Fold, Xpr};
 
 // If we are writing a linear algebra library,
 // we will need a statically sized vector type
@@ -20,23 +20,22 @@ impl<const N: usize> VecN<{ N }> {
 
 struct IthElement<const N: usize>(usize);
 
-impl<const N: usize> Fold for IthElement<{ N }> {
-    // match all terminals wrapping a `VecN`
-    type TerminalType = VecN<{ N }>;
+// match all terminals wrapping a `VecN`
+impl<const N: usize> Fold<Term<VecN<{ N }>>> for IthElement<{ N }> {
 
     // replace by the value at the index in `IthElement`
     type Output = f64;
 
     // extracts the i-th element of a vector terminal
     #[inline]
-    fn fold_term(&mut self, Term(v): &Term<VecN<{ N }>>) -> f64 {
+    fn fold(&mut self, Term(v): &Term<VecN<{ N }>>) -> f64 {
         v.0[self.0]
     }
 }
 
 impl<T, const N: usize> From<Xpr<T>> for VecN<{ N }>
 where
-    T: Foldable<IthElement<{ N }>, Output = f64>,
+    IthElement<N>: Fold<Xpr<T>, Output=f64>
 {
     // conversion from a vector expression to a VecN instance
     #[inline]

@@ -4,59 +4,33 @@
 use std::marker::PhantomData;
 
 use super::{
-    ops::{Add, OutputFoldableAdd, Term},
-    Xpr,
+    ops::{Term}
 };
 
 /// internal type for evaluating expression. It folds each terminal in an expression tree to its wrapped
 /// type and performs the operations on its upwards traversal through the tree, thus evaluating the expression.
 pub struct Evaluator<T>(pub PhantomData<T>);
 
-impl<T> Fold for Evaluator<T>
+impl<T> Fold<Term<T>> for Evaluator<T>
 where
     T: Copy,
 {
-    type TerminalType = T;
-    type Output = Self::TerminalType;
+    type Output = T;
     /// replaces Terminal values with their wrapped type
     #[inline]
-    fn fold_term(&mut self, Term(x): &Term<T>) -> T {
+    fn fold(&mut self, Term(x): &Term<T>) -> T {
         *x
     }
 }
 
 /// A trait for expression manipulation. `Fold` together with [`Xpr`] are at the heart of this crate.
-pub trait Fold {
+pub trait Fold<T: ?Sized> {
     // implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
-
-    /// `Self` will only manipulate terminals wrapping `TerminalType`
-    type TerminalType;
 
     /// The output of [`Fold::fold_term`], `Self` will replace all `Term<Self::TerminalType>` by values of this type.
     type Output;
 
-    fn fold_term(&mut self, _: &Term<Self::TerminalType>) -> Self::Output;
-
-    #[inline]
-    fn fold_add<L, R>(&mut self, Add(l, r): &Add<L, R>) -> OutputFoldableAdd<Self, L, R>
-    where
-        L: Foldable<Self>,
-        R: Foldable<Self>,
-        OutputFoldable<Self, L>: std::ops::Add<OutputFoldable<Self, R>>,
-    {
-        // ping-pongs to to the Foldable::fold impl for Xpr<T> for both arguments
-        // and applies the operation +
-        l.fold(self) + r.fold(self)
-    }
-
-    #[inline]
-    fn fold<T>(&mut self, Xpr(t): &Xpr<T>) -> OutputFoldable<Self, T>
-    where
-        T: Foldable<Self>,
-    {
-        // ping-pong to the Foldable::fold impl for Term<T> and Add<L,R>
-        t.fold(self)
-    }
+    fn fold(&mut self, _: &T) -> Self::Output;
 }
 
 /// Just contains the Sealed pattern to make Foldable not implementable from the outside
@@ -69,7 +43,7 @@ mod private {
     impl<F, T> Sealed<F> for T
     where
         T: Foldable<F>,
-        F: Fold + ?Sized,
+        F: Fold<Self> + ?Sized,
     {
     }
 }
@@ -93,7 +67,7 @@ mod private {
 /// trigger a recursion to a nested foldable type.
 pub trait Foldable<F>: private::Sealed<F>
 where
-    F: Fold + ?Sized,
+    F: Fold<Self> + ?Sized,
 {
     /// The output of the fold operation
     type Output;
@@ -110,13 +84,12 @@ pub type OutputFoldable<F, T> = <T as Foldable<F>>::Output;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ops;
+    use crate::{ops, Xpr};
 
     struct FortytwoifyI32;
-    impl Fold for FortytwoifyI32 {
-        type TerminalType = i32;
+    impl Fold<ops::Term<i32>> for FortytwoifyI32 {
         type Output = Xpr<ops::Term<i32>>;
-        fn fold_term(&mut self, _: &ops::Term<i32>) -> Self::Output {
+        fn fold(&mut self, _: &ops::Term<i32>) -> Self::Output {
             Xpr::new(42)
         }
     }

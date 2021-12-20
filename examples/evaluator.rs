@@ -3,14 +3,12 @@ use xpr::{ops::Term, Fold, Foldable, Xpr};
 pub struct Evaluator;
 
 /// evaluates an expression of i32 terminals
-impl Fold for Evaluator {
-    // matches all terminals wrapping `Self::TerminalType`
-    type TerminalType = i32;
+impl Fold<Term<i32>> for Evaluator {
 
     // replaces the terminals by instances of `Self::Output`
     type Output = i32;
     /// replaces Terminal values with their wrapped type
-    fn fold_term(&mut self, Term(x): &Term<i32>) -> i32 {
+    fn fold(&mut self, Term(x): &Term<i32>) -> i32 {
         *x
     }
 }

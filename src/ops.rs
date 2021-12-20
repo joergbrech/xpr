@@ -13,14 +13,14 @@ pub struct Term<T>(pub T);
 
 impl<T, F> Foldable<F> for Term<T>
 where
-    F: Fold<TerminalType = T>,
+    F: Fold<Self>,
 {
-    type Output = <F as Fold>::Output;
+    type Output = <F as Fold<Self>>::Output;
 
     // ping-pongs to Fold::fold
     #[inline]
     fn fold(&self, f: &mut F) -> Self::Output {
-        f.fold_term(self)
+        f.fold(self)
     }
 }
 
@@ -41,15 +41,32 @@ impl<L, R, F> Foldable<F> for Add<L, R>
 where
     L: Foldable<F>,
     R: Foldable<F>,
-    F: Fold,
+    F: Fold<Self> + Fold<L> + Fold<R>,
     OutputFoldable<F, L>: std::ops::Add<OutputFoldable<F, R>>,
 {
-    type Output = OutputFoldableAdd<F, L, R>;
+    type Output = <F as Fold<Self>>::Output;
 
     // ping-pongs to Fold::fold
     #[inline]
     fn fold(&self, f: &mut F) -> Self::Output {
-        f.fold_add(self)
+        f.fold(self)
+    }
+}
+
+impl<L,R,U> Fold<Add<L,R>> for U 
+where 
+    U: Fold<L> + Fold<R>,
+    L: Foldable<Self>,
+    R: Foldable<Self>,
+    OutputFoldable<Self, L>: std::ops::Add<OutputFoldable<Self, R>>
+{
+    type Output = OutputFoldableAdd<Self, L, R>;
+    
+    fn fold(&mut self, Add(l,r): &Add<L,R>) -> Self::Output
+    {
+        // ping-pongs to to the Foldable::fold impl for Xpr<T> for both arguments
+        // and applies the operation +
+        l.fold(self) + r.fold(self)
     }
 }
 

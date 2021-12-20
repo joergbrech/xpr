@@ -6,15 +6,13 @@ use xpr::{
 struct Substitution;
 
 // make every i32 terminal wrap "42"
-impl Fold for Substitution {
-    // matches all terminals wrapping `Self::TerminalType`
-    type TerminalType = i32;
+impl Fold<Term<i32>> for Substitution {
 
     // replaces the terminals by instances of `Self::Output`
     type Output = OutputOfAdd<Term<i32>, Term<i32>>;
 
     // replaces i32 terminals with an Add expression
-    fn fold_term(&mut self, &Term(x): &Term<i32>) -> Self::Output {
+    fn fold(&mut self, &Term(x): &Term<i32>) -> Self::Output {
         Xpr::new(x - 42) + Xpr::new(42)
     }
 }
