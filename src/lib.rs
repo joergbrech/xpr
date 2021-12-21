@@ -56,13 +56,13 @@
 //! }
 //!
 //! // create an expression
-//! let x = Xpr::new(-2.)/Xpr::new(5.);
+//! let x = -Xpr::new(2.)/Xpr::new(5.);
 //!
 //! // fortitwoify the expression
 //! let y = Fortytwoify.fold(&x);
 //!
 //! // lazily evaluate the expression
-//! assert_eq!(y.eval(), 1.);
+//! assert_eq!(y.eval(), -1.);
 //! ```
 //!
 //! Refer to the documentation of [`Fold`] for more useful examples.
