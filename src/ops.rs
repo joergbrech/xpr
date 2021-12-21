@@ -41,8 +41,9 @@ binary_op!(BitOr, bitor, |, OutputOfBitOr, "An `Xpr<BitOr<L,R>>` represents the 
 binary_op!(BitXor, bitxor, ^, OutputOfBitXor, "An `Xpr<BitXor<L,R>>` represents the bitwise XOR: `l ^ r`");
 
 
-// To Do
-//  - unary operators Deref, DerefMut, Index, IndexMut
+// Missing operators:
+//  - unary operators Deref, DerefMut, Index, IndexMut, Drop
 //  - XXAssign operators (fn takes &mut self)
 //  - special operators like Fn
+// To Do:
 //  - TESTING!!!!
