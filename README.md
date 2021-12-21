@@ -1,5 +1,7 @@
 # xpr
 
+[![CI](https://github.com/joergbrech/xpr/actions/workflows/CI.yml/badge.svg)](https://github.com/joergbrech/xpr/actions/workflows/CI.yml)
+
 ***Disclaimer*: This is a toy project that was developed mainly for procrastination purposes.**
 
 xpr is a rust library that allows you to use expression templates with your custom type.
