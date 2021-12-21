@@ -8,7 +8,7 @@ use super::{
 
 /// An `Xpr<Term<T>>` instance is a leaf in an expression tree, e.g. a single value of type `T` with no
 /// operations applied to it.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Term<T>(pub T);
 
 impl<T, F> Foldable<F> for Term<T>
@@ -42,8 +42,17 @@ binary_op!(BitXor, bitxor, ^, OutputOfBitXor, "An `Xpr<BitXor<L,R>>` represents 
 
 
 // Missing operators:
+//
 //  - unary operators Deref, DerefMut, Index, IndexMut, Drop
-//  - XXAssign operators (fn takes &mut self)
-//  - special operators like Fn
+//     - Issue: Some take mutable self, see issue with XXXAssign
+//     - Issue: Some return a reference, e.g. Index
+//
+//  - XXXAssign operators
+//     - Issue: trait functions don't return anything but mutate self. By design of xpr, this 
+//              would require a change of the type of self. E.g. for AddAssign, Xpr<U> would be 
+//              replaced by Xpr<Add<Xpr<U>, Xpr<V>>>. I can't change the type of self
+//
+//  - special operators like Fn, FnOnce, FnMut, RangeBounds
+
 // To Do:
 //  - TESTING!!!!
