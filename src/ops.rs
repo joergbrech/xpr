@@ -72,7 +72,7 @@ where
     R: Foldable<Self>,
     OutputFoldable<Self, L>: std::ops::Add<OutputFoldable<Self, R>>,
 {
-    type Output = OutputFoldableAdd<Self, L, R>;
+    type Output = <OutputFoldable<Self, L> as std::ops::Add<OutputFoldable<Self, R>>>::Output;
 
     #[inline]
     fn fold(&mut self, Add(l, r): &Add<L, R>) -> Self::Output {
@@ -87,7 +87,3 @@ where
 ///
 /// This is a convenience type to not have to write out the `Xpr` enum explicitly.
 pub type OutputOfAdd<L, R> = Xpr<Add<Xpr<L>, Xpr<R>>>;
-
-/// The output of the addition of two [`OutputFoldable<F,_>`] types, where `F` implements [`Fold`]
-type OutputFoldableAdd<F, L, R> =
-    <OutputFoldable<F, L> as std::ops::Add<OutputFoldable<F, R>>>::Output;
