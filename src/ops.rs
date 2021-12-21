@@ -24,66 +24,21 @@ where
     }
 }
 
-/// An `Xpr<Add<L,R>>` instance is an expression representing an addition.
-#[derive(Debug)]
-pub struct Add<L, R>(pub L, pub R);
+// expand implementations for binary operations
+binary_op!(Add, add, +, OutputOfAdd, "An `Xpr<Add<L,R>>` represents the addition of two operands `l: L` and `r: R`: `l + r`");
+binary_op!(Sub, sub, -, OutputOfSub, "An `Xpr<Sub<L,R>>` represents the subtraction of `r: R` from `l: L`: `l - r`");
+binary_op!(Mul, mul, *, OutputOfMul, "An `Xpr<Mul<L,R>>` represents the multiplication of two operands `l: L` and `r: R`: l * r");
+binary_op!(Div, div, /, OutputOfDiv, "An `Xpr<Div<L,R>>` represents the division of `l: L` by `r: R`: l / r");
+binary_op!(Rem, rem, %, OutputOfRem, "An `Xpr<Rem<L,R>>` represents the remainder of `l: L` after devision by `r: R`: l % r");
+binary_op!(Shl, shl, <<, OutputOfShl, "An `Xpr<Shl<L,R>>` represents the left shift operator of `l: L` by `r: R`: l << r");
+binary_op!(Shr, shr, >>, OutputOfShr, "An `Xpr<Shr<L,R>>` represents the right shift operator of `l: L` by `r: R`: l >> r");
+binary_op!(BitAnd, bitand, &, OutputOfBitAnd, "An `Xpr<BitAnd<L,R>>` represents the bitwise AND of two operands `l: L` and `r: R`: `l & r`");
+binary_op!(BitOr, bitor, |, OutputOfBitOr, "An `Xpr<BitOr<L,R>>` represents the bitwise OR of two operands `l: L` and `r: R`: `l | r`");
+binary_op!(BitXor, bitxor, ^, OutputOfBitXor, "An `Xpr<BitXor<L,R>>` represents the bitwise XOR of two operands `l: L` and `r: R`: `l ^ r`");
 
-// implement addition for Xpr<T> expressions
-impl<L, R> std::ops::Add<Xpr<R>> for Xpr<L> {
-    type Output = Xpr<Add<Self, Xpr<R>>>;
-    #[inline]
-    fn add(self, other: Xpr<R>) -> Self::Output {
-        Xpr(Add(self, other))
-    }
-}
 
-// implement addition for Xpr<T> + Expression
-impl<'a, L, R> std::ops::Add<&'a R> for Xpr<L>
-where
-    R: Expression,
-{
-    type Output = Xpr<Add<Self, Xpr<Term<&'a R>>>>;
-    #[inline]
-    fn add(self, other: &'a R) -> Self::Output {
-        Xpr(Add(self, other.as_xpr()))
-    }
-}
-
-impl<L, R, F> Foldable<F> for Add<L, R>
-where
-    L: Foldable<F>,
-    R: Foldable<F>,
-    F: Fold<Self> + Fold<L> + Fold<R>,
-    OutputFoldable<F, L>: std::ops::Add<OutputFoldable<F, R>>,
-{
-    type Output = <F as Fold<Self>>::Output;
-
-    // ping-pongs to Fold::fold
-    #[inline]
-    fn fold(&self, f: &mut F) -> Self::Output {
-        f.fold(self)
-    }
-}
-
-impl<L, R, U> Fold<Add<L, R>> for U
-where
-    U: Fold<L> + Fold<R>,
-    L: Foldable<Self>,
-    R: Foldable<Self>,
-    OutputFoldable<Self, L>: std::ops::Add<OutputFoldable<Self, R>>,
-{
-    type Output = <OutputFoldable<Self, L> as std::ops::Add<OutputFoldable<Self, R>>>::Output;
-
-    #[inline]
-    fn fold(&mut self, Add(l, r): &Add<L, R>) -> Self::Output {
-        // ping-pongs to to the Foldable::fold impl for Xpr<T> for both arguments
-        // and applies the operation +
-        l.fold(self) + r.fold(self)
-    }
-}
-
-/// The output of adding two foldable L, R where L and R are assumed not to be `Xpr`,
-/// e.g. `OutputOfAdd<Term<u32>, Term<bool>>`.
-///
-/// This is a convenience type to not have to write out the `Xpr` enum explicitly.
-pub type OutputOfAdd<L, R> = Xpr<Add<Xpr<L>, Xpr<R>>>;
+// To Do
+//  - unary operators
+//  - XXAssign operators (fn takes &mut self)
+//  - special operators like Fn
+//  - TESTING!!!!

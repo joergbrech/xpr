@@ -44,33 +44,36 @@
 //!
 //! struct Fortytwoify;
 //!
-//! impl Fold<Term<i32>> for Fortytwoify {
+//! impl Fold<Term<f64>> for Fortytwoify {
 //!
-//!     // We will replace these terminals by terminal expressions wrapping i32 values
-//!     type Output = Xpr<Term<i32>>;
+//!     // We will replace these terminals by terminal expressions wrapping f64 values
+//!     type Output = Xpr<Term<f64>>;
 //!
-//!     // replaces terminals with terminals wrapping the value 42
-//!     fn fold(&mut self, _: &Term<i32>) -> Self::Output {
-//!         Xpr::new(42)
+//!     // replaces terminals with terminals wrapping the value 42.
+//!     fn fold(&mut self, _: &Term<f64>) -> Self::Output {
+//!         Xpr::new(42.)
 //!     }
 //! }
 //!
 //! // create an expression
-//! let x = Xpr::new(7) + Xpr::new(5);
+//! let x = Xpr::new(-2.)/Xpr::new(5.);
 //!
 //! // fortitwoify the expression
 //! let y = Fortytwoify.fold(&x);
 //!
 //! // lazily evaluate the expression
-//! assert_eq!(y.eval(), 84);
+//! assert_eq!(y.eval(), 1.);
 //! ```
 //!
 //! Refer to the documentation of [`Fold`] for more useful examples.
 
-use std::marker::PhantomData;
-
+#[macro_use]
+mod ops_macros;
 mod foldable;
+
 pub mod ops;
+
+use std::marker::PhantomData;
 
 use crate::foldable::{Foldable, OutputFoldable};
 use crate::ops::Term;
@@ -87,8 +90,8 @@ use crate::ops::Term;
 /// use xpr::*;
 /// let x = Xpr::new(5);
 /// let y = Xpr::new(1);
-/// let z = x + y;
-/// //type of z is xpr::Xpr<xpr::ops::Add<xpr::Xpr<xpr::ops::Term<{integer}>>, xpr::Xpr<xpr::ops::Term<{integer}>>>>
+/// let z = x * y;
+/// //type of z is xpr::Xpr<xpr::ops::Mul<xpr::Xpr<xpr::ops::Term<{integer}>>, xpr::Xpr<xpr::ops::Term<{integer}>>>>
 /// ```
 #[derive(Debug)]
 pub struct Xpr<T>(T);
@@ -196,7 +199,7 @@ impl<U> Xpr<U> {
 /// }
 ///
 /// // create a new expression representing a chained addition
-/// let x = Xpr::new(10) + Xpr::new(15) + Xpr::new(17);
+/// let x = Xpr::new(20) / Xpr::new(2) + Xpr::new(3) * Xpr::new(5) + Xpr::new(23) - Xpr::new(6);
 ///
 /// // use the Evaluator to evaluate the expression
 /// let res = Evaluator.fold(&x);
@@ -213,7 +216,7 @@ impl<U> Xpr<U> {
 ///
 /// ```
 /// use xpr::{
-///     ops::{OutputOfAdd, Term},
+///     ops::{OutputOfSub, Term},
 ///     Fold, Xpr,
 /// };
 ///
@@ -221,12 +224,12 @@ impl<U> Xpr<U> {
 ///
 /// impl Fold<Term<i32>> for Substitution {
 ///    
-///     type Output = OutputOfAdd<Term<i32>, Term<i32>>;
+///     type Output = OutputOfSub<Term<i32>, Term<i32>>;
 ///
-///     // replaces i32 terminals with an Add expression
+///     // replaces i32 terminals with a Sub expression
 ///     // that returns the same value
 ///     fn fold(&mut self, &Term(x): &Term<i32>) -> Self::Output {
-///         Xpr::new(x - 42) + Xpr::new(42)
+///         Xpr::new(x + 42) - Xpr::new(42)
 ///     }
 /// }
 ///
@@ -324,11 +327,11 @@ impl<U> Xpr<U> {
 ///
 /// Granted, the example is a bit of an oversimplification because the addition consumes
 /// its summands and it would have been possible to write a fairly performant vector addition
-/// with the same functionality based on move semantics. But a sum that consumes its summands 
-/// is something you usually don't want. It takes only a little bit of tweaking to get the 
+/// with the same functionality based on move semantics. But a sum that consumes its summands
+/// is something you usually don't want. It takes only a little bit of tweaking to get the
 /// example to work on terminals that wrap references to vectors that will not be consumed.
 /// The tweaked example can be found in the examples subdirectory of the repository.
-/// 
+///
 pub trait Fold<T: ?Sized> {
     // implement the [fold pattern](https://rust-unofficial.github.io/patterns/patterns/creational/fold.html)
 
