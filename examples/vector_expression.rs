@@ -1,4 +1,3 @@
-use std::ops::{Index, Range};
 use xpr::{ops::Term, Expression, Fold, Xpr};
 
 // If we are writing a linear algebra library,
@@ -10,24 +9,6 @@ impl<const N: usize> Vec<{ N }> {
     #[inline]
     fn new(array: [f64; N]) -> Self {
         Self(Box::new(array))
-    }
-}
-
-impl<const N: usize> Index<Range<usize>> for Vec<N> {
-    type Output = [f64];
-
-    #[inline]
-    fn index(&self, index: Range<usize>) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl<const N: usize> Index<usize> for Vec<N> {
-    type Output = f64;
-
-    #[inline]
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
     }
 }
 
@@ -46,7 +27,7 @@ impl<const N: usize> Fold<Term<Vec<{ N }>>> for IthElement<{ N }> {
     // extracts the i-th element of a vector terminal
     #[inline]
     fn fold(&mut self, Term(v): &Term<Vec<{ N }>>) -> f64 {
-        v[self.0]
+        v.0[self.0]
     }
 }
 
@@ -78,5 +59,5 @@ pub fn main() {
 
     // A chained addition without any Vec temporaries!
     let v = Vec::from(x1 + x2 + x3 + x4 + x5);
-    println!("v[0..5] = {:?}", &v[0..5]);
+    println!("v[0..5] = {:?}", &v.0[0..5]);
 }
