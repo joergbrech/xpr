@@ -5,14 +5,6 @@
 //! operation to them. The result will be an object representing the operations you performed. Any possible chain of operations
 //! will be represented by their own specific type.
 //!
-//! ## Limitations
-//!
-//! Current limitiations of the library are that an expression can only hold terminals
-//! of the same type and that terminals are the only expressions that can be transformed using
-//! [`Fold`] *(see below)*. These restrictions can be lifted, once Rust supports
-//! [specialization](https://github.com/rust-lang/rust/issues/31844), which is probably not any
-//! time soon.
-//!
 //! ## Usage
 //!
 //! Evaluation of the expression is be performed lazily by calling `Xpr::eval`:
@@ -28,12 +20,10 @@
 //! assert_eq!(x.eval(), 12);
 //! ```
 //!
-//! In the above example, the type of `x` is
-//!
-//! `Xpr<Add<(Xpr<Term<{integer}>>, Xpr<Term<{integer}>>)>>`,
-//!
-//! where all crate and nested module names have been omitted for better readability.
+//! In the above example, the type of `x` is `Xpr<Add<(Xpr<Term<{integer}>>, Xpr<Term<{integer}>>)>>`[^note].
 //! It is a type representing the addition of two integers. To actually evaulate the expression, we call `x.eval()`.
+//! 
+//! [^note]: All crate and nested module names have been omitted in the type for better readability.
 //!
 //! In addition to lazy evaluation, you can manipulate expressions using the [`Fold`] trait. A struct implementing `Fold`
 //! can replace terminals *(leaf expressions)* and perform operations along the way. It can be stateful or a
@@ -66,6 +56,90 @@
 //! ```
 //!
 //! Refer to the documentation of [`Fold`] for more useful examples.
+//! 
+//! ## Limitations
+//!
+//! Current limitiations of the library are 
+//!  - that only expression holding terminals of the same type can be transformed using [`Fold`],
+//!  - that terminals are the only expressions that can be transformed using [`Fold`]. 
+//! 
+//! As a consequence, **we can not mix e.g. scalars, vectors and matrices in expressions**, which is 
+//! a major limitation.
+//! 
+//! These restrictions could easily be lifted, once Rust supports
+//! [specialization](https://github.com/rust-lang/rust/issues/31844), which is probably not any
+//! time soon.
+//! 
+//! ## Performance
+//! 
+//! xpr allows us to write arithmetic operations like we would expect and hide away ugly implementation
+//! details like optimizations, which the user should neither have to worry about, nor interfere with.
+//! 
+//! What is the overhead of this? Spoiler alert: **xpr provides zero-cost abstraction!**
+//! 
+//! Similarly to the 
+//! [analysis in the boost::yap documentation](https://www.boost.org/doc/libs/1_71_0/doc/html/boost_yap/manual.html#boost_yap.manual.object_code),
+//! we can compare the assembly code of an xpr implementation to a native implementation.
+//! The following code introduces two functions, `eval_native` and `eval_as_xpr`, were the former performs some arithmetic calculation directly and the latter creates an xpr 
+//! expression and evaluates it.
+//! 
+//! ```
+//! use xpr::Xpr;
+//!
+//! #[derive(Debug, Copy, Clone)]
+//! struct Num(f64);
+//!
+//! impl std::ops::Add for Num {
+//!     type Output = Num;
+//!     #[inline]
+//!     fn add(self, other: Num) -> Num {
+//!         Num(self.0 + other.0)
+//!     }
+//! }
+//!
+//! impl std::ops::Mul for Num {
+//!     type Output = Num;
+//!     #[inline]
+//!     fn mul(self, other: Num) -> Num {
+//!         Num(self.0 * other.0)
+//!     }
+//! }
+//!
+//! fn eval_native(a: Num, x: Num, y: Num) -> Num {
+//!     (a * x + y) * (a * x + y) + (a * x + y) +
+//!     (a * x + y) * (a * x + y) + (a * x + y) +
+//!     (a * x + y) * (a * x + y) + (a * x + y) +
+//!     (a * x + y) * (a * x + y) + (a * x + y)
+//! }
+//!
+//! fn eval_as_xpr(a: Num, x: Num, y: Num) -> Num {
+//!     let a = Xpr::new(a);
+//!     let x = Xpr::new(x);
+//!     let y = Xpr::new(y); 
+//!     (
+//!         (a * x + y) * (a * x + y) + (a * x + y) +
+//!         (a * x + y) * (a * x + y) + (a * x + y) +
+//!         (a * x + y) * (a * x + y) + (a * x + y) +
+//!         (a * x + y) * (a * x + y) + (a * x + y)
+//!     ).eval()
+//! }
+//!
+//! fn main() {
+//!     let a = Num(1.);
+//!     let x = Num(2.);
+//!     let y = Num(3.);
+//!     // println!("{:?}", eval_as_xpr(a, x, y));
+//!     println!("{:?}", eval_native(a, x, y));
+//! }
+//! ```
+//! We can look at the assembly code after optimization by building in release mode and using the `--emit=asm` option for `rustc`.
+//! If we comment the last line in the main function and uncomment the second to last line, we will get the exact same assembly. This 
+//! does not change if you add more operations to the expression *(You might have to add `#![recursion_limit = "256"]` to the top 
+//! of the file)*.
+//! 
+//! That being said, this analysis only checks a special case using simple data types and only evaluation. The performance still needs to
+//! be tested for more complex data types, expressions and fold operations.
+//! 
 
 #[macro_use]
 mod ops_macros;
@@ -93,7 +167,7 @@ use crate::ops::Term;
 /// let z = x * y;
 /// //type of z is xpr::Xpr<xpr::ops::Mul<xpr::Xpr<xpr::ops::Term<{integer}>>, xpr::Xpr<xpr::ops::Term<{integer}>>>>
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Xpr<T>(T);
 
 //In a perfect world, this would be  an enum. But this only makes sense as soon as
@@ -143,13 +217,13 @@ pub struct Evaluator<T>(pub PhantomData<T>);
 
 impl<T> Fold<Term<T>> for Evaluator<T>
 where
-    T: Copy,
+    T: Clone,
 {
     type Output = T;
     /// replaces Terminal values with their wrapped type
     #[inline]
     fn fold(&mut self, Term(x): &Term<T>) -> T {
-        *x
+        x.clone()
     }
 }
 
@@ -159,7 +233,7 @@ impl<U> Xpr<U> {
     #[inline]
     pub fn eval<T>(&self) -> foldable::OutputFoldable<Evaluator<T>, Self>
     where
-        T: Copy,
+        T: Clone,
         U: Foldable<Evaluator<T>>,
         Evaluator<T>: Fold<U> + Fold<Self>,
     {
