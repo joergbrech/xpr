@@ -48,7 +48,7 @@ macro_rules! unary_op {
         }
 
         /// The output of the given operation for two operands L, R where L and R are operation structs
-        /// from this module, e.g. 
+        /// from this module, e.g.
         /// e.g. `OutputOfXXX<Term<u32>, OutputOfMul<Term<bool>, Term<f64>>>`.
         ///
         /// This is a convenience type to not have to write out the `Xpr` enum explicitly.
@@ -119,7 +119,7 @@ macro_rules! binary_op {
         }
 
         /// The output of the given operation for two operands L, R where L and R are operation structs
-        /// from this module, e.g. 
+        /// from this module, e.g.
         /// e.g. `OutputOfXXX<Term<u32>, OutputOfMul<Term<bool>, Term<f64>>>`.
         ///
         /// This is a convenience type to not have to write out the `Xpr` enum explicitly.
