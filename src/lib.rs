@@ -72,7 +72,7 @@
 //! ## Performance
 //!
 //! xpr allows us to write arithmetic operations in a natural way, provide lazy evaluation and give
-//! us the possibility to hide implementation details like optimizations, which the user should neither 
+//! us the possibility to hide implementation details like optimizations, which the user should neither
 //! have to worry about, nor interfere with.
 //!
 //! What is the overhead of this? Spoiler alert: **xpr provides zero-cost abstraction!**
@@ -404,7 +404,7 @@ impl<U> Xpr<U> {
 /// with the same functionality based on move semantics. But a sum that consumes its summands
 /// is something you usually don't want. It takes only a little bit of tweaking to get the
 /// example to work on terminals that wrap references to vectors that will not be consumed.
-/// The [tweaked example](https://github.com/joergbrech/xpr/blob/main/examples/vector_expression_ref.rs) can be found in the [examples](https://github.com/joergbrech/xpr/tree/main/examples) 
+/// The [tweaked example](https://github.com/joergbrech/xpr/blob/main/examples/vector_expression_ref.rs) can be found in the [examples](https://github.com/joergbrech/xpr/tree/main/examples)
 /// subdirectory of the repository.
 ///
 pub trait Fold<T: ?Sized> {
