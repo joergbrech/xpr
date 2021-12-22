@@ -20,7 +20,7 @@
 //! assert_eq!(x.eval(), 12);
 //! ```
 //!
-//! In the above example, the type of `x` is `Xpr<Add<(Xpr<Term<{integer}>>, Xpr<Term<{integer}>>)>>`[^note].
+//! In the above example, the type of `x` is `Xpr<Add<Xpr<Term<{integer}>>, Xpr<Term<{integer}>>>>`[^note].
 //! It is a type representing the addition of two integers. To actually evaulate the expression, we call `x.eval()`.
 //!
 //! [^note]: All crate and nested module names have been omitted in the type for better readability.
@@ -55,13 +55,12 @@
 //! assert_eq!(y.eval(), -1.);
 //! ```
 //!
-//! Refer to the documentation of [`Fold`] for more useful examples.
+//! Refer to the documentation of [`Fold`] and the [examples](https://github.com/joergbrech/xpr/tree/main/examples) for more useful examples.
 //!
 //! ## Limitations
 //!
-//! Current limitiations of the library are
-//!  - that only expression holding terminals of the same type can be transformed using [`Fold`],
-//!  - that terminals are the only expressions that can be transformed using [`Fold`].
+//!  - Only expression holding terminals of the same type can be transformed using [`Fold`].
+//!  - Terminals are the only expressions that can be transformed using [`Fold`].
 //!
 //! As a consequence, **we can not mix e.g. scalars, vectors and matrices in expressions**, which is
 //! a major limitation.
@@ -72,8 +71,9 @@
 //!
 //! ## Performance
 //!
-//! xpr allows us to write arithmetic operations like we would expect and hide away ugly implementation
-//! details like optimizations, which the user should neither have to worry about, nor interfere with.
+//! xpr allows us to write arithmetic operations in a natural way, provide lazy evaluation and give
+//! us the possibility to hide implementation details like optimizations, which the user should neither
+//! have to worry about, nor interfere with.
 //!
 //! What is the overhead of this? Spoiler alert: **xpr provides zero-cost abstraction!**
 //!
@@ -137,7 +137,7 @@
 //! does not change if you add more operations to the expression *(You might have to add `#![recursion_limit = "256"]` to the top
 //! of the file)*.
 //!
-//! That being said, this analysis only checks a special case using simple data types and only evaluation. The performance still needs to
+//! That being said, this analysis is not complete. The performance still needs to
 //! be tested for more complex data types, expressions and fold operations.
 //!
 
