@@ -3,7 +3,7 @@
 
 use super::{
     foldable::{Foldable, OutputFoldable},
-    Expression, Fold, Xpr,
+    ExpressionCast, Fold, Xpr,
 };
 
 /// An `Xpr<Term<T>>` instance is a leaf in an expression tree, e.g. a single value of type `T` with no

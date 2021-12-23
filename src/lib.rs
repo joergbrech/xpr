@@ -182,10 +182,11 @@ impl<T> Xpr<Term<T>> {
     }
 }
 
-impl<T, F> Foldable<F> for Xpr<T>
+impl<F, X> Foldable<F> for X
 where
-    T: Foldable<F>,
-    F: Fold<Self> + Fold<T>,
+    X: Expression,
+    <X as Expression>::Wrapped: Foldable<F>,
+    F: Fold<Self> + Fold<<X as Expression>::Wrapped>,
 {
     type Output = <F as Fold<Self>>::Output;
 
@@ -196,17 +197,18 @@ where
     }
 }
 
-impl<T, U> Fold<Xpr<T>> for U
+impl<X, U> Fold<X> for U
 where
-    U: Fold<T>,
-    T: Foldable<Self>,
+    X: Expression,
+    U: Fold<<X as Expression>::Wrapped>,
+    <X as Expression>::Wrapped: Foldable<Self>,
 {
-    type Output = OutputFoldable<Self, T>;
+    type Output = OutputFoldable<Self, <X as Expression>::Wrapped>;
 
     #[inline]
-    fn fold(&mut self, Xpr(t): &Xpr<T>) -> <T as Foldable<Self>>::Output {
+    fn fold(&mut self, x: &X) -> <<X as Expression>::Wrapped as Foldable<Self>>::Output {
         // ping-pong to the Foldable::fold impl for Term<T> and Add<L,R>
-        t.fold(self)
+        x.unwrap().fold(self)
     }
 }
 
@@ -335,7 +337,7 @@ impl<U> Xpr<U> {
 /// Let's pretend we want to write our own linear algebra library.
 ///
 /// ```
-/// use xpr::{ops::Term, Expression, Fold, Xpr};
+/// use xpr::{ops::Term, ExpressionCast, Fold, Xpr};
 ///
 /// // This is our statically sized vector type
 /// #[derive(Debug)]
@@ -350,7 +352,7 @@ impl<U> Xpr<U> {
 ///
 /// // a convenience trait for converting Vec instances to xpr terminals.
 /// // this lets us call as_xpr and into_xpr on Vec instances.
-/// impl<const N: usize> Expression for Vec<N> {}
+/// impl<const N: usize> ExpressionCast for Vec<N> {}
 ///
 /// struct IthElement<const N: usize>(usize);
 ///
@@ -418,7 +420,7 @@ pub trait Fold<T: ?Sized> {
 }
 
 /// A trait for converting an instance into xpr terminals
-pub trait Expression {
+pub trait ExpressionCast {
     /// Wrap a reference of self in an Xpr terminal
     #[inline]
     fn as_xpr(&self) -> Xpr<Term<&Self>>
@@ -435,6 +437,26 @@ pub trait Expression {
         Self: Sized,
     {
         Xpr::new(self)
+    }
+}
+
+pub trait Expression {
+    type Wrapped;
+    fn unwrap(&self) -> &Self::Wrapped;
+    fn wrap(t: Self::Wrapped) -> Self;
+}
+
+impl<T> Expression for Xpr<T> {
+    type Wrapped = T;
+
+    #[inline]
+    fn unwrap(&self) -> &T {
+        &self.0
+    }
+
+    #[inline]
+    fn wrap(t: T) -> Self {
+        Xpr(t)
     }
 }
 

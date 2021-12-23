@@ -73,10 +73,10 @@ macro_rules! binary_op {
             }
         }
 
-        // overload the operator for (Xpr,Expression)
+        // overload the operator for (Xpr,ExpressionCast)
         impl<'a, L, R> std::ops::$op<&'a R> for Xpr<L>
         where
-            R: Expression,
+            R: ExpressionCast,
         {
             type Output = Xpr<$op<Self, Xpr<Term<&'a R>>>>;
             #[inline]

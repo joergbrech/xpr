@@ -1,4 +1,4 @@
-use xpr::{ops::Term, Expression, Fold, Xpr};
+use xpr::{ops::Term, ExpressionCast, Fold, Xpr};
 
 // If we are writing a linear algebra library,
 // we will need a statically sized vector type
@@ -13,7 +13,7 @@ impl<const N: usize> Vec<{ N }> {
 }
 
 // a convenience trait for cnverting Vec instances to xpr terminals
-impl<const N: usize> Expression for Vec<N> {}
+impl<const N: usize> ExpressionCast for Vec<N> {}
 
 // now lets implement conversion from an Xpr<T> expression to Vec
 

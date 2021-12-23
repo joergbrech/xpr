@@ -1,5 +1,5 @@
 use std::ops::{Index, Range};
-use xpr::{ops::Term, Expression, Fold, Xpr};
+use xpr::{ops::Term, ExpressionCast, Fold, Xpr};
 
 // This is our statically sized vector type
 #[derive(Debug)]
@@ -31,7 +31,7 @@ impl<const N: usize> Index<usize> for Vec<N> {
 }
 
 // a convenience trait for cnverting Vec instances to xpr terminals
-impl<const N: usize> Expression for Vec<N> {}
+impl<const N: usize> ExpressionCast for Vec<N> {}
 
 // now lets implement conversion from an Xpr<T> expression to Vec
 
